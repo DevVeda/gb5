@@ -1,0 +1,46 @@
+# Push a tag (git tag v0.1.0 && git push origin v0.1.0): builds gb5 for Linux, macOS and Windows and
+# attaches the zips to that tag's GitHub release (created if missing).
+# The PS5 side (runtime/dist/, tools/register.elf) is prebuilt and committed: it needs PS5_Vulkan + Docker.
+name: release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - { os: ubuntu-latest, name: linux-x64 }
+          - { os: macos-latest, name: macos-arm64 }
+          - { os: windows-latest, name: windows-x64 }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: mksys
+        run: |
+          exe=mksys; [[ $RUNNER_OS == Windows ]] && exe=mksys.exe
+          gcc -O2 -o "$exe" mksys.c third_party/bc7enc.c -lm 2>/dev/null || cc -O2 -o "$exe" mksys.c third_party/bc7enc.c -lm
+          echo "MKSYS=$exe" >> "$GITHUB_ENV"
+      - name: package
+        run: |
+          pip install pyinstaller==6.22.3
+          pyinstaller --onefile --name gb5 \
+            --add-data "web/index.html:web" --add-data "assets/logo.svg:assets" \
+            --add-data "runtime/overrides.tsv:runtime" --add-data "runtime/dist:runtime/dist" \
+            --add-data "tools/register.elf:tools" --add-binary "$MKSYS:." gb5.py
+          mkdir gb5 && cp dist/gb5* gb5/ && cp README.md gb5/
+          python -m zipfile -c "gb5-${{ matrix.name }}.zip" gb5/
+      - name: upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --draft --title "GB5 $GITHUB_REF_NAME" --notes "" || true
+          gh release upload "$GITHUB_REF_NAME" "gb5-${{ matrix.name }}.zip" --clobber

@@ -1,0 +1,26 @@
+# Never in git: games, the console BIOS, keys
+/roms/
+/bios/
+*.gba
+*.agb
+*.sav
+.env
+.env.*
+
+# Built / generated (runtime/dist/ and tools/register.elf stay in git: the release packages them)
+/out/
+/build/
+/runtime/target/
+__pycache__/
+
+# Downloaded (gb5.py cheats-update)
+/cheatdb/
+/data/
+.claude/
+# Local tooling
+/runtime/local.env
+.DS_Store
+.claude/settings.local.json
+
+# Notes
+/TODO.md

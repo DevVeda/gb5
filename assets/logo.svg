@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" fill="#161616"/>
+  <!-- GBA body: a wide pill with a lighter left half, like the trophy -->
+  <clipPath id="body"><rect x="56" y="156" width="400" height="200" rx="100"/></clipPath>
+  <g clip-path="url(#body)">
+    <rect x="56" y="156" width="400" height="200" fill="#5b4fd1"/>
+    <rect x="56" y="156" width="200" height="200" fill="#6f63e6"/>
+  </g>
+  <!-- screen -->
+  <rect x="176" y="186" width="160" height="120" rx="10" fill="#161616"/>
+  <!-- PS5 shapes on the screen -->
+  <circle cx="226" cy="246" r="18" fill="none" stroke="#6f63e6" stroke-width="8"/>
+  <path d="M272 228 l28 36 M300 228 l-28 36" stroke="#5b4fd1" stroke-width="8" stroke-linecap="round"/>
+  <!-- d-pad -->
+  <rect x="98" y="244" width="60" height="20" rx="4" fill="#161616"/>
+  <rect x="118" y="224" width="20" height="60" rx="4" fill="#161616"/>
+  <!-- A / B -->
+  <circle cx="400" cy="236" r="15" fill="#161616"/>
+  <circle cx="370" cy="270" r="15" fill="#161616"/>
+</svg>

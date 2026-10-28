@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GB5</title>
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<style>
+  :root { --bg:#0b0d12; --panel:#151922; --line:#2a3040; --text:#e8ecf4; --dim:#8b93a7; --accent:#2f6fed; --err:#ff6b6b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.4 system-ui, sans-serif; }
+  main { max-width:1200px; margin:0 auto; padding:16px; display:grid; gap:16px; grid-template-columns:320px 1fr; }
+  @media (max-width:860px) { main { grid-template-columns:1fr; } }
+  form, .panel { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; display:grid; gap:12px; align-content:start; }
+  section { display:grid; gap:16px; align-content:start; min-width:0; }
+  label { display:grid; gap:4px; color:var(--dim); font-size:13px; }
+  input { font:inherit; color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px; width:100%; }
+  button { font:inherit; padding:10px; border-radius:8px; border:0; background:var(--accent); color:#fff; cursor:pointer; }
+  button.alt { background:var(--line); }
+  button:disabled { opacity:.5; cursor:wait; }
+  #msg, #sgMsg { font-size:13px; white-space:pre-wrap; min-height:1.4em; }
+  .err { color:var(--err); }
+  h1, h2 { font-size:18px; margin:0; }
+  h2 { font-size:15px; }
+  .hint { color:var(--dim); font-size:12px; margin:0; }
+  .src { font-size:12px; color:var(--dim); }
+
+  /* PS5 home mock: 16:9, everything in container units so it scales */
+  .tv { position:relative; aspect-ratio:16/9; border-radius:12px; overflow:hidden; background:#000; container-type:inline-size; }
+  .tv .art { position:absolute; inset:0; background:center/cover no-repeat; }
+  .tv .shade { position:absolute; inset:0; background:linear-gradient(90deg, rgba(0,0,0,.7), rgba(0,0,0,0) 60%), linear-gradient(180deg, rgba(0,0,0,.5), rgba(0,0,0,0) 35%); }
+  .tabs { position:absolute; left:4%; top:4%; font-size:1.6cqw; font-weight:600; display:flex; gap:2.5cqw; }
+  .tabs span:last-child { opacity:.6; }
+  .row { position:absolute; left:4%; top:12%; display:flex; gap:1cqw; align-items:flex-start; }
+  .tile { width:6cqw; aspect-ratio:1; border-radius:.8cqw; background:#2a3040; }
+  .tile.sel { width:10cqw; background:#333 center/cover; outline:.25cqw solid #fff; outline-offset:.25cqw; }
+  .name { position:absolute; left:4%; top:36%; font-size:3cqw; font-weight:600; max-width:60%; text-shadow:0 2px 8px #000; }
+  .play { position:absolute; left:4%; top:46%; background:#fff; color:#000; font-weight:600; font-size:1.4cqw; padding:1cqw 5cqw; border-radius:5cqw; }
+
+  .search { display:flex; gap:8px; }
+  .search input { flex:1; }
+  .games { display:flex; flex-wrap:wrap; gap:6px; }
+  .games button { background:var(--line); padding:6px 10px; font-size:13px; }
+  .games button.on { background:var(--accent); }
+  .gallery { display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:8px; }
+  .gallery.wide { grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); }
+  .gallery img { width:100%; border-radius:6px; cursor:pointer; border:2px solid transparent; background:#000; display:block; }
+  .gallery img.on { border-color:var(--accent); }
+  fieldset.opts { border:1px solid var(--line); border-radius:8px; display:grid; gap:8px; padding:8px 10px 10px; }
+  fieldset.opts legend { color:var(--dim); font-size:12px; padding:0 4px; }
+  select { font:inherit; color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:8px; width:100%; }
+  label.check { display:flex; flex-direction:row; align-items:center; gap:8px; }
+  label.check input { width:auto; }
+  #cheats ul { margin:4px 0 0; padding-left:18px; max-height:180px; overflow:auto; }
+  #cheats li.off { opacity:.45; }
+  .lang { display:flex; gap:6px; align-items:center; font-size:13px; color:var(--dim); }
+  .lang button { background:none; border:0; padding:0; color:var(--dim); cursor:pointer; font:inherit; text-decoration:underline; }
+  .lang button.on { color:var(--text); text-decoration:none; font-weight:600; }
+</style>
+</head>
+<body>
+<main>
+  <form id="f">
+    <div class="lang"><button type="button" data-lang="en">English</button> / <button type="button" data-lang="es">Español</button></div>
+    <h1 data-t="title"></h1>
+    <label><span data-t="rom"></span> <input type="file" name="rom" accept=".gba,.agb,.zip" required></label>
+    <div id="cheats" class="hint"></div>
+    <label><span data-t="name"></span> <input type="text" name="name" data-tp="name_ph"></label>
+    <label><span data-t="icon"></span> <input type="file" name="icon" accept="image/*"></label>
+    <span class="src" id="src-icon"></span>
+    <label><span data-t="hero"></span> <input type="file" name="hero" accept="image/*"></label>
+    <span class="src" id="src-hero"></span>
+    <label><span data-t="launch"></span> <input type="file" name="launch" accept="image/*"></label>
+    <label><span data-t="music"></span> <input type="file" name="music" accept=".at9"></label>
+    <p class="hint" data-t="music_hint"></p>
+    <label><span data-t="save"></span> <input type="file" name="save" accept=".sav,.srm"></label>
+    <p class="hint" data-t="save_hint"></p>
+    <label><span data-t="bios"></span> <input type="file" name="bios" accept=".bin,.rom,.gba"></label>
+    <p class="hint" data-t="bios_hint"></p>
+    <fieldset class="opts">
+      <legend data-t="opts"></legend>
+      <label><span data-t="size"></span> <select name="size"><option value="16:9" selected data-t="size_169"></option><option value="fill" data-t="size_fill"></option><option value="pixel" data-t="size_pixel"></option></select></label>
+      <label><span data-t="abtn"></span> <select name="a_button"><option value="cross" selected data-t="cross"></option><option value="circle" data-t="circle"></option></select></label>
+      <label class="check"><input type="checkbox" name="lcd"> <span data-t="lcd"></span></label>
+      <label class="check"><input type="checkbox" name="gba_colors"> <span data-t="colors"></span></label>
+    </fieldset>
+    <label><span data-t="eboot"></span> <input type="text" name="eboot" data-tp="eboot_ph"></label>
+    <button type="submit" data-act="build" data-t="build"></button>
+    <label><span data-t="host"></span> <input type="text" name="host" placeholder="192.168.x.x"></label>
+    <button type="submit" data-act="deploy" class="alt" data-t="deploy"></button>
+    <div id="msg"></div>
+    <button type="button" id="updateAll" class="alt" data-t="update_all"></button>
+    <p class="hint" data-t="update_hint"></p>
+    <ul id="updateList" class="hint"></ul>
+  </form>
+
+  <section>
+    <div class="tv" id="home">
+      <div class="art"></div><div class="shade"></div>
+      <div class="tabs"><span data-t="tab_games"></span><span data-t="tab_media"></span></div>
+      <div class="row"><div class="tile sel" id="icon"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div><div class="tile"></div></div>
+      <div class="name" id="name"></div>
+      <div class="play" data-t="play"></div>
+    </div>
+
+    <div class="panel">
+      <h2 data-t="sgdb"></h2>
+      <div class="search"><input id="q" data-tp="q_ph"><button type="button" id="go" data-t="search"></button></div>
+      <div class="games" id="games"></div>
+      <div id="sgMsg" class="hint"></div>
+      <h2 data-t="icons"></h2><div class="gallery" id="g-icon"></div>
+      <h2 data-t="heroes"></h2><div class="gallery wide" id="g-hero"></div>
+    </div>
+
+    <div>
+      <p class="hint" data-t="at_launch"></p>
+      <div class="tv" id="launchTv"><div class="art"></div></div>
+    </div>
+    <p class="hint" data-t="approx"></p>
+  </section>
+</main>
+<script>
+const T = {
+  es: {
+    title: 'GB5', rom: 'ROM (.gba o .zip)', name: 'Nombre en el menú', name_ph: 'sale del nombre del archivo si lo dejas vacío',
+    icon: 'Icono propio (cuadrado, sale a 512×512)', hero: 'Hero propio, fondo al seleccionar (16:9; un banner se recorta al centro)',
+    launch: 'Fondo al lanzar (opcional, si no usa el hero)', music: 'Música (.at9, 48 kHz, máx 2 MiB)',
+    music_hint: 'El navegador no puede reproducir AT9; sólo se valida al construir.',
+    save: 'Partida guardada (.sav, opcional)', save_hint: 'De otro emulador (mGBA, VBA…) o de tu cartucho. Al subir a la PS5 reemplaza la partida que tenga allí.',
+    bios: 'BIOS de GBA (opcional: tu propio volcado, 16 KB)', bios_hint: 'Con BIOS, el juego arranca con la intro de GBA. Si la dejas vacía se usa bios/gba_bios.bin si existe.',
+    opts: 'Opciones de inicio (en el juego se cambian con L2+R2)', size: 'Tamaño', size_169: '16:9 (pantalla completa)', size_fill: 'Llenar alto',
+    size_pixel: 'Píxel perfecto (×6)', abtn: 'Botón A', cross: 'Cruz', circle: 'Círculo', lcd: 'Filtro LCD', colors: 'Colores de GBA',
+    eboot: 'eboot.bin del runtime (ruta en este equipo, opcional)', eboot_ph: '/ruta/eboot.bin', build: 'Construir carpeta', host: 'IP de la PS5',
+    deploy: 'Construir y subir a la PS5', update_all: 'Actualizar todos los juegos en la PS5',
+    update_hint: 'Lleva el runtime más reciente (runtime/build.sh) a todos los juegos instalados en la PS5. Un juego abierto en la consola se salta.',
+    tab_games: 'Juegos', tab_media: 'Multimedia', play: 'Jugar', your_game: 'Tu juego', sgdb: 'Buscar arte en SteamGridDB', q_ph: 'nombre del juego',
+    search: 'Buscar', icons: 'Iconos', heroes: 'Heroes', at_launch: 'Al lanzar (pic1):',
+    approx: 'Aproximación del menú: mismo recorte centrado que el empaquetador (un banner pierde los costados). La consola añade sus propios degradados.',
+    icon_src: 'Icono: ', hero_src: 'Hero: ', none: 'ninguno', searching: 'Buscando…', no_results: 'Sin resultados', loading_art: 'Cargando arte…',
+    no_art: 'Este juego no tiene iconos ni heroes en SteamGridDB', cheats_look: 'Buscando cheats…',
+    cheats_nodb: 'Cheats: no se pudo bajar la lista (¿sin internet?)', cheats_none: 'Cheats: no hay para este juego',
+    cheats_head: (ok, all, file) => `Cheats: ${ok} de ${all} (de ${file}), todos apagados; se activan en el juego con L2+R2`,
+    warn: 'Aviso: ', unsupported: ' (no soportado)', need_host: 'Falta la IP de la PS5', updating: 'Actualizando todos los juegos… (puede tardar)',
+    open_on_ps5: ' — está abierto en la PS5, ciérralo y vuelve a intentar', updated: (ok, bad) => `Listo: ${ok} actualizados` + (bad ? `, ${bad} pendientes` : ''),
+    building_up: 'Construyendo y subiendo…', building: 'Construyendo (el BC7 4K tarda unos segundos)…', done: 'Listo: ',
+  },
+  en: {
+    title: 'GB5', rom: 'ROM (.gba or .zip)', name: 'Name on the home screen', name_ph: 'taken from the file name if left empty',
+    icon: 'Your own icon (square, becomes 512×512)', hero: 'Your own hero, background when selected (16:9; a banner is centre-cropped)',
+    launch: 'Launch background (optional, else the hero)', music: 'Music (.at9, 48 kHz, 2 MiB max)',
+    music_hint: "Browsers can't play AT9; it's only checked when building.",
+    save: 'Save file (.sav, optional)', save_hint: 'From another emulator (mGBA, VBA…) or your cartridge. Uploading to the PS5 replaces the save there.',
+    bios: 'GBA BIOS (optional: your own dump, 16 KB)', bios_hint: 'With a BIOS the game boots with the GBA intro. Left empty, bios/gba_bios.bin is used if it exists.',
+    opts: 'Starting options (in game: L2+R2)', size: 'Size', size_169: '16:9 (full screen)', size_fill: 'Fill height',
+    size_pixel: 'Pixel perfect (×6)', abtn: 'A button', cross: 'Cross', circle: 'Circle', lcd: 'LCD grid', colors: 'GBA colours',
+    eboot: 'Runtime eboot.bin (path on this computer, optional)', eboot_ph: '/path/eboot.bin', build: 'Build folder', host: 'PS5 IP',
+    deploy: 'Build and upload to the PS5', update_all: 'Update all games on the PS5',
+    update_hint: 'Brings the latest runtime (runtime/build.sh) to every game installed on the PS5. A game open on the console is skipped.',
+    tab_games: 'Games', tab_media: 'Media', play: 'Play', your_game: 'Your game', sgdb: 'Find artwork on SteamGridDB', q_ph: 'game name',
+    search: 'Search', icons: 'Icons', heroes: 'Heroes', at_launch: 'At launch (pic1):',
+    approx: 'An approximation of the home screen: the same centre crop as the packager (a banner loses its sides). The console adds its own gradients.',
+    icon_src: 'Icon: ', hero_src: 'Hero: ', none: 'none', searching: 'Searching…', no_results: 'No results', loading_art: 'Loading artwork…',
+    no_art: 'No icons or heroes for this game on SteamGridDB', cheats_look: 'Looking for cheats…',
+    cheats_nodb: 'Cheats: could not get the list (no internet?)', cheats_none: 'Cheats: none for this game',
+    cheats_head: (ok, all, file) => `Cheats: ${ok} of ${all} (from ${file}), all off; turn them on in the game with L2+R2`,
+    warn: 'Note: ', unsupported: ' (not supported)', need_host: 'The PS5 IP is missing', updating: 'Updating every game… (this can take a while)',
+    open_on_ps5: ' — open on the PS5, close it and try again', updated: (ok, bad) => `Done: ${ok} updated` + (bad ? `, ${bad} pending` : ''),
+    building_up: 'Building and uploading…', building: 'Building (the 4K BC7 takes a few seconds)…', done: 'Done: ',
+  },
+};
+const f = document.getElementById('f'), msg = document.getElementById('msg');
+const $ = id => document.getElementById(id);
+let lang = 'es';
+try { lang = localStorage.getItem('lang') || (navigator.language.toLowerCase().startsWith('es') ? 'es' : 'en'); } catch { /* no storage: browser language */ }
+const t = k => T[lang][k];
+let lastCheats = null;  // re-drawn in the other language
+let romName = '';
+
+function setLang(l) {
+  lang = l;
+  try { localStorage.setItem('lang', l); } catch { /* not kept */ }
+  document.documentElement.lang = l;
+  for (const el of document.querySelectorAll('[data-t]')) el.textContent = t(el.dataset.t);
+  for (const el of document.querySelectorAll('[data-tp]')) el.placeholder = t(el.dataset.tp);
+  for (const b of document.querySelectorAll('.lang button')) b.classList.toggle('on', b.dataset.lang === l);
+  if (romName) f.name.placeholder = romName;
+  render();
+  updateName();
+  if (lastCheats) drawCheats(lastCheats);
+}
+for (const b of document.querySelectorAll('.lang button')) b.onclick = () => setLang(b.dataset.lang);
+
+// art[k] = { preview: url for the page, send: () => payload for /api/build }
+const art = {};
+
+const paint = (tv, url) => { tv.querySelector('.art').style.backgroundImage = url ? `url("${url}")` : ''; };
+function render() {
+  $('icon').style.backgroundImage = art.icon ? `url("${art.icon.preview}")` : '';
+  paint($('home'), art.hero?.preview);
+  paint($('launchTv'), (art.launch || art.hero)?.preview);
+  for (const k of ['icon', 'hero']) $('src-' + k).textContent = t(k + '_src') + (art[k]?.label || t('none'));
+}
+
+const b64 = file => new Promise((ok, ko) => {
+  const r = new FileReader();
+  r.onload = () => ok({ name: file.name, data: r.result.split(',')[1] });
+  r.onerror = () => ko(r.error);
+  r.readAsDataURL(file);
+});
+
+for (const k of ['icon', 'hero', 'launch']) f[k].addEventListener('change', () => {
+  const file = f[k].files[0];
+  if (art[k]?.local) URL.revokeObjectURL(art[k].preview);
+  art[k] = file ? { preview: URL.createObjectURL(file), local: true, label: file.name, send: () => b64(file) } : null;
+  document.querySelectorAll(`#g-${k} img.on`).forEach(i => i.classList.remove('on'));
+  render();
+});
+
+// The default name: the file name as No-Intro writes it, without its "(USA, Europe)" tags and with a
+// trailing ", The" put back in front. (A .zip's bytes are compressed: its ROM header can't be read here.)
+function nameFromFile(n) {
+  n = n.replace(/\.[^.]+$/, '').replace(/\s*[([].*$/, '').trim();
+  const m = n.match(/^(.*), (The|A|An)( - .*)?$/);
+  return m ? `${m[2]} ${m[1]}${m[3] || ''}` : n;
+}
+function updateName() { $('name').textContent = f.name.value || romName || t('your_game'); }
+f.name.addEventListener('input', updateName);
+f.rom.addEventListener('change', () => {
+  const file = f.rom.files[0];
+  if (!file) return;
+  romName = nameFromFile(file.name);
+  f.name.placeholder = romName;
+  showCheats(file);
+  if (!$('q').value) $('q').value = romName;
+  updateName();
+});
+
+// Cheats the title will carry (libretro-database, CodeBreaker), all off until turned on in the game (L2+R2)
+async function showCheats(file) {
+  const box = $('cheats');
+  lastCheats = null;
+  box.textContent = t('cheats_look');
+  let url = '/api/cheats?name=' + encodeURIComponent(file.name);
+  if (!/\.zip$/i.test(file.name)) {  // a plain ROM: send its header, for the revision check
+    const hdr = new Uint8Array(await file.slice(0, 0xC0).arrayBuffer());
+    url += '&hdr=' + encodeURIComponent(btoa(String.fromCharCode(...hdr)));
+  }
+  try {
+    drawCheats(lastCheats = await api(url));
+  } catch (e) { box.textContent = 'Cheats: ' + (e.message || e); }
+}
+function drawCheats(d) {
+  const box = $('cheats');
+  if (!d.db) { box.textContent = t('cheats_nodb'); return; }
+  if (!d.file) { box.textContent = t('cheats_none'); return; }
+  box.replaceChildren();
+  const head = document.createElement('div');
+  head.textContent = t('cheats_head')(d.cheats.filter(c => c.ok).length, d.cheats.length, d.file) + (d.warn ? `. ${t('warn')}${d.warn}` : '');
+  const ul = document.createElement('ul');
+  for (const c of d.cheats) {
+    const li = document.createElement('li');
+    li.textContent = c.name + (c.ok ? '' : t('unsupported'));
+    if (!c.ok) li.className = 'off';
+    ul.append(li);
+  }
+  box.append(head, ul);
+}
+
+// SteamGridDB (through our server, which holds the API key)
+const api = async url => {
+  const j = await fetch(url).then(r => r.json());
+  if (!j.ok) throw new Error(j.error);
+  return j.data;
+};
+const sgMsg = s => { $('sgMsg').textContent = s; };
+async function search() {
+  const q = $('q').value.trim();
+  if (!q) return;
+  sgMsg(t('searching'));
+  $('games').replaceChildren();
+  try {
+    const games = await api('/api/sgdb/search?q=' + encodeURIComponent(q));
+    sgMsg(games.length ? '' : t('no_results'));
+    for (const g of games.slice(0, 12)) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = g.name + (g.release_date ? ` (${new Date(g.release_date * 1000).getFullYear()})` : '');
+      b.onclick = () => { $('games').querySelectorAll('.on').forEach(x => x.classList.remove('on')); b.classList.add('on'); gallery(g.id); };
+      $('games').append(b);
+    }
+  } catch (e) { sgMsg(String(e.message || e)); }
+}
+async function gallery(id) {
+  sgMsg(t('loading_art'));
+  try {
+    const [grids, heroes] = await Promise.all([api(`/api/sgdb/art?id=${id}&kind=grids`), api(`/api/sgdb/art?id=${id}&kind=heroes`)]);
+    sgMsg(grids.length + heroes.length ? '' : t('no_art'));
+    fill('icon', grids);
+    fill('hero', heroes);
+  } catch (e) { sgMsg(String(e.message || e)); }
+}
+function fill(k, items) {
+  const g = $('g-' + k);
+  g.replaceChildren();
+  for (const a of items) {
+    const img = document.createElement('img');
+    img.src = a.thumb;
+    img.loading = 'lazy';
+    img.alt = `${a.w}×${a.h}`;
+    img.title = `${a.w}×${a.h}`;
+    img.onclick = () => {
+      g.querySelectorAll('.on').forEach(i => i.classList.remove('on'));
+      img.classList.add('on');
+      f[k].value = '';
+      art[k] = { preview: a.url, label: `SteamGridDB ${a.w}×${a.h}`, send: async () => ({ url: a.url }) };
+      render();
+    };
+    g.append(img);
+  }
+}
+$('go').onclick = search;
+$('q').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); search(); } });
+
+$('updateAll').onclick = async () => {
+  if (!f.host.value) { msg.className = 'err'; msg.textContent = t('need_host'); return; }
+  const btn = $('updateAll'), list = $('updateList');
+  btn.disabled = true;
+  list.replaceChildren();
+  msg.className = ''; msg.textContent = t('updating');
+  try {
+    const r = await fetch('/api/update-all', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ host: f.host.value }) });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error);
+    for (const g of j.data) {
+      const li = document.createElement('li');
+      li.textContent = (g.ok ? '✓ ' : '✗ ') + g.name + (g.ok ? '' : t('open_on_ps5'));
+      list.append(li);
+    }
+    const bad = j.data.filter(g => !g.ok).length;
+    msg.textContent = t('updated')(j.data.length - bad, bad);
+  } catch (err) { msg.className = 'err'; msg.textContent = String(err.message || err); }
+  finally { btn.disabled = false; }
+};
+
+f.addEventListener('submit', async e => {
+  e.preventDefault();
+  const act = e.submitter.dataset.act;
+  if (act === 'deploy' && !f.host.value) { msg.className = 'err'; msg.textContent = t('need_host'); return; }
+  const btns = f.querySelectorAll('button');
+  btns.forEach(b => b.disabled = true);
+  msg.className = ''; msg.textContent = act === 'deploy' ? t('building_up') : t('building');
+  try {
+    const body = { name: f.name.value || romName, eboot: f.eboot.value, host: f.host.value,
+                   size: f.size.value, a_button: f.a_button.value, lcd: f.lcd.checked, gba_colors: f.gba_colors.checked };
+    for (const n of ['rom', 'music', 'bios', 'save']) if (f[n].files[0]) body[n] = await b64(f[n].files[0]);
+    for (const k of ['icon', 'hero', 'launch']) if (art[k]) body[k] = await art[k].send();
+    const r = await fetch('/api/' + act, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json();
+    msg.className = j.ok ? '' : 'err';
+    msg.textContent = j.ok ? t('done') + j.folder : j.error;
+  } catch (err) {
+    msg.className = 'err'; msg.textContent = String(err);
+  } finally {
+    btns.forEach(b => b.disabled = false);
+  }
+});
+
+setLang(lang);
+</script>
+</body>
+</html>

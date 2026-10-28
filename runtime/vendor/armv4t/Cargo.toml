@@ -1,0 +1,8 @@
+[package]
+name = "armv4t"
+version = "0.2.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "ARMv4T (ARM7TDMI) ARM + Thumb instruction model and decoder"
+
+[dependencies]
