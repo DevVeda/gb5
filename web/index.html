@@ -20,6 +20,7 @@
   button:disabled { opacity:.5; cursor:wait; }
   #msg, #sgMsg { font-size:13px; white-space:pre-wrap; min-height:1.4em; }
   .err { color:var(--err); }
+  .ok { color:#5fd38d; }
   h1, h2 { font-size:18px; margin:0; }
   h2 { font-size:15px; }
   .hint { color:var(--dim); font-size:12px; margin:0; }
@@ -133,6 +134,8 @@
       <label><span data-t="abtn"></span> <select name="a_button"><option value="cross" data-t="cross"></option><option value="circle" data-t="circle"></option></select></label>
       <label class="check"><input type="checkbox" name="lcd"> <span data-t="lcd"></span></label>
       <label class="check"><input type="checkbox" name="gba_colors"> <span data-t="colors"></span></label>
+      <label class="check"><input type="checkbox" name="hardcore"> <span data-t="hardcore"></span></label>
+      <p class="hint" data-t="hardcore_hint"></p>
     </fieldset>
     <fieldset class="opts">
       <legend>SteamGridDB</legend>
@@ -165,9 +168,10 @@ const T = {
     bios_legend: 'BIOS de GBA', bios_none: 'Sin BIOS: los juegos arrancan directo.', bios_ok: 'BIOS guardada (la oficial de GBA).',
     bios_other: 'BIOS guardada, pero no es la oficial de GBA: puede que no arranque.', bios_remove: 'Quitar BIOS',
     size: 'Tamaño', size_169: '16:9 (pantalla completa)', size_fill: 'Llenar alto',
-    size_pixel: 'Píxel perfecto (×6)', abtn: 'Botón A', cross: 'Cruz', circle: 'Círculo', lcd: 'Filtro LCD', colors: 'Colores de GBA',
-    build: 'Construir carpeta', host: 'IP de la PS5',
-    deploy: 'Construir y subir a la PS5', update_all: 'Actualizar todos los juegos en la PS5',
+    size_pixel: 'Entero ×6 (píxeles perfectos)', abtn: 'Botón A', cross: '✕', circle: '○', lcd: 'Filtro LCD', colors: 'Colores de GBA', hardcore: 'Modo hardcore (RetroAchievements)',
+    hardcore_hint: 'Sin cargar estados, rebobinar ni cheats. Activarlo dentro del juego lo reinicia. Los logros hardcore cuentan cuando RetroAchievements apruebe GB5.',
+    build: 'Crear y descargar .zip', host: 'IP de la PS5',
+    deploy: 'Crear y subir a la PS5', update_all: 'Actualizar todos los juegos en la PS5',
     update_hint: 'Lleva el runtime más reciente (runtime/build.sh) a todos los juegos instalados en la PS5. Un juego abierto en la consola se salta.',
     tab_games: 'Juegos', tab_media: 'Multimedia', play: 'Jugar', your_game: 'Tu juego', sgdb: 'Buscar arte en SteamGridDB', q_ph: 'nombre del juego',
     search: 'Buscar', icons: 'Iconos', heroes: 'Heroes', at_launch: 'Al lanzar (pic1):',
@@ -178,7 +182,7 @@ const T = {
     cheats_head: (ok, all, file) => `Cheats: ${ok} de ${all} (de ${file}), todos apagados; se activan en el juego con L2+R2`,
     warn: 'Aviso: ', unsupported: ' (no soportado)', need_host: 'Falta la IP de la PS5', updating: 'Actualizando todos los juegos… (puede tardar)',
     open_on_ps5: ' — está abierto en la PS5, ciérralo y vuelve a intentar', updated: (ok, bad) => `Listo: ${ok} actualizados` + (bad ? `, ${bad} pendientes` : ''),
-    building_up: 'Construyendo y subiendo…', building: 'Construyendo (el BC7 4K tarda unos segundos)…', done: 'Listo: ',
+    building_up: 'Construyendo y subiendo…', building: 'Construyendo (el BC7 4K tarda unos segundos)…', downloaded: z => `✓ Listo: ${z} está en tu carpeta de Descargas`, uploaded: id => `✓ Listo: ${id} está en la PS5`,
   },
   en: {
     nav_build: 'Create', nav_settings: 'Settings', opts_where: 'The GB5 Menu options (size, A button…), the BIOS and the SteamGridDB key are in Settings.',
@@ -193,9 +197,10 @@ const T = {
     bios_legend: 'GBA BIOS', bios_none: 'No BIOS: games boot straight in.', bios_ok: 'BIOS saved (the official GBA one).',
     bios_other: "BIOS saved, but it isn't the official GBA one: it may not boot.", bios_remove: 'Remove BIOS',
     size: 'Size', size_169: '16:9 (full screen)', size_fill: 'Fill height',
-    size_pixel: 'Pixel perfect (×6)', abtn: 'A button', cross: 'Cross', circle: 'Circle', lcd: 'LCD grid', colors: 'GBA colours',
-    build: 'Build folder', host: 'PS5 IP',
-    deploy: 'Build and upload to the PS5', update_all: 'Update all games on the PS5',
+    size_pixel: 'Integer ×6 (pixel perfect)', abtn: 'A button', cross: '✕', circle: '○', lcd: 'LCD grid', colors: 'GBA colours', hardcore: 'Hardcore mode (RetroAchievements)',
+    hardcore_hint: 'No state loading, rewind or cheats. Turning it on in game resets it. Hardcore unlocks count once RetroAchievements approves GB5.',
+    build: 'Create and download .zip', host: 'PS5 IP',
+    deploy: 'Create and upload to the PS5', update_all: 'Update all games on the PS5',
     update_hint: 'Brings the latest runtime (runtime/build.sh) to every game installed on the PS5. A game open on the console is skipped.',
     tab_games: 'Games', tab_media: 'Media', play: 'Play', your_game: 'Your game', sgdb: 'Find artwork on SteamGridDB', q_ph: 'game name',
     search: 'Search', icons: 'Icons', heroes: 'Heroes', at_launch: 'At launch (pic1):',
@@ -206,7 +211,7 @@ const T = {
     cheats_head: (ok, all, file) => `Cheats: ${ok} of ${all} (from ${file}), all off; turn them on in the game with L2+R2`,
     warn: 'Note: ', unsupported: ' (not supported)', need_host: 'The PS5 IP is missing', updating: 'Updating every game… (this can take a while)',
     open_on_ps5: ' — open on the PS5, close it and try again', updated: (ok, bad) => `Done: ${ok} updated` + (bad ? `, ${bad} pending` : ''),
-    building_up: 'Building and uploading…', building: 'Building (the 4K BC7 takes a few seconds)…', done: 'Done: ',
+    building_up: 'Building and uploading…', building: 'Building (the 4K BC7 takes a few seconds)…', downloaded: z => `✓ Done: ${z} is in your Downloads folder`, uploaded: id => `✓ Done: ${id} is on the PS5`,
   },
 };
 const f = document.getElementById('f'), msg = document.getElementById('msg');
@@ -398,17 +403,18 @@ f.addEventListener('submit', async e => {
     for (const k of ['icon', 'hero', 'launch']) if (art[k]) body[k] = await art[k].send();
     const r = await fetch('/api/' + act, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const j = await r.json();
-    msg.className = j.ok ? '' : 'err';
-    msg.textContent = j.ok ? t('done') + j.folder : j.error;
-    if (j.ok) {
+    if (!j.ok) throw new Error(j.error);
+    if (act === 'build') {  // the zip goes where the browser saves downloads (Downloads, unless changed)
       const a = document.createElement('a');
       a.href = '/api/zip?id=' + encodeURIComponent(j.id);
-      a.textContent = j.zip;
       a.download = j.zip;
-      msg.append(' · ', a);
+      a.click();
+      msg.className = 'ok'; msg.textContent = t('downloaded')(j.zip);
+    } else {
+      msg.className = 'ok'; msg.textContent = t('uploaded')(j.id);
     }
   } catch (err) {
-    msg.className = 'err'; msg.textContent = String(err);
+    msg.className = 'err'; msg.textContent = String(err.message || err);
   } finally {
     btns.forEach(b => b.disabled = false);
   }
@@ -428,7 +434,7 @@ for (const b of document.querySelectorAll('.nav button')) b.onclick = () => show
 const s = $('s');
 let keySet = false;
 function fillSettings(d) {
-  s.size.value = d.size; s.a_button.value = d.a_button; s.lcd.checked = d.lcd; s.gba_colors.checked = d.gba_colors;
+  s.size.value = d.size; s.a_button.value = d.a_button; s.lcd.checked = d.lcd; s.gba_colors.checked = d.gba_colors; s.hardcore.checked = d.hardcore;
   keySet = d.sgdb_key_set;
   s.sgdb_key.value = '';
   s.sgdb_key.placeholder = keySet ? t('key_set') : '';
@@ -455,7 +461,8 @@ async function postSettings(body) {
 $('biosRemove').onclick = () => postSettings({ bios_remove: true });
 s.addEventListener('submit', async e => {
   e.preventDefault();
-  const body = { size: s.size.value, a_button: s.a_button.value, lcd: s.lcd.checked, gba_colors: s.gba_colors.checked, sgdb_key: s.sgdb_key.value.trim() };
+  const body = { size: s.size.value, a_button: s.a_button.value, lcd: s.lcd.checked, gba_colors: s.gba_colors.checked, hardcore: s.hardcore.checked,
+                 sgdb_key: s.sgdb_key.value.trim() };
   if (s.bios.files[0]) body.bios = (await b64(s.bios.files[0])).data;
   postSettings(body);
 });

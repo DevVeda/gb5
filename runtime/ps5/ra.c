@@ -8,6 +8,7 @@
 #include "card.h"
 #include "rc_client.h"
 #include "rhash/md5.h"
+#include "rc_version.h"
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <pthread.h>
@@ -28,6 +29,14 @@ int sceSystemServiceParamGetInt(int param_id, int *value);
 static rc_client_t *client;
 static const void *machine;
 static int es;  // console in Spanish
+#ifndef GB5_VERSION
+#define GB5_VERSION "0.0.0"  // build.sh passes the last git tag
+#endif
+#ifndef CORE_VERSION
+#define CORE_VERSION "0.0.0"  // build.sh passes vendor/gba-core/Cargo.toml's version
+#endif
+// RetroAchievements identifies the emulator by this (unique, numeric version); RA Hub forwards it.
+#define USER_AGENT "GB5/" GB5_VERSION " (PS5) gba-core/" CORE_VERSION " rcheevos/" RCHEEVOS_VERSION_STRING
 
 static void notify(const char *fmt, ...) {
   notify_request_t nr = {0};
@@ -49,9 +58,9 @@ static char *hub(const char *method, const char *path, const char *body, int *st
     return NULL;
   }
   size_t blen = body ? strlen(body) : 0;
-  char head[256];
+  char head[384];
   int hl = snprintf(head, sizeof head,
-                    "%s %s HTTP/1.0\r\nHost: 127.0.0.1\r\nX-RAHub: 1\r\n"  // X-RAHub: RA Hub's CSRF guard on POST
+                    "%s %s HTTP/1.0\r\nHost: 127.0.0.1\r\nX-RAHub: 1\r\nUser-Agent: " USER_AGENT "\r\n"  // X-RAHub: RA Hub's CSRF guard on POST
                     "Content-Type: application/x-www-form-urlencoded\r\nContent-Length: %zu\r\n\r\n",
                     method, path, blen);
   int ok = write(s, head, (size_t)hl) == hl && (!blen || write(s, body, blen) == (ssize_t)blen);
@@ -180,8 +189,9 @@ static void on_load(int result, const char *err, rc_client_t *c, void *ud) {
   }
   rc_client_user_game_summary_t s;
   rc_client_get_user_game_summary(c, &s);
-  notify(es ? "Conectado a RetroAchievements\n%u de %u logros conseguidos" : "Connected to RetroAchievements\n%u of %u achievements unlocked",
-         s.num_unlocked_achievements, s.num_core_achievements);
+  int hc = rc_client_get_hardcore_enabled(c);  // RA's rule: say which mode the game started in
+  notify(es ? "Conectado a RetroAchievements (%s)\n%u de %u logros conseguidos" : "Connected to RetroAchievements (%s)\n%u of %u achievements unlocked",
+         hc ? "hardcore" : "casual", s.num_unlocked_achievements, s.num_core_achievements);
 }
 
 static char hash[33];
@@ -195,7 +205,7 @@ static void on_login(int result, const char *err, rc_client_t *c, void *ud) {
   rc_client_begin_load_game(c, hash, on_load, NULL);
 }
 
-void ra_start(const void *m, const uint8_t *rom, size_t len) {
+void ra_start(const void *m, const uint8_t *rom, size_t len, int hardcore) {
   int lang = -1, status = 0;
   char user[64], token[64];
   es = sceSystemServiceParamGetInt(1, &lang) == 0 && (lang == 3 || lang == 20);  // es-ES, es-419
@@ -223,10 +233,17 @@ void ra_start(const void *m, const uint8_t *rom, size_t len) {
   client = rc_client_create(read_memory, server_call);
   rc_client_enable_logging(client, RC_CLIENT_LOG_LEVEL_WARN, on_log);
   rc_client_set_event_handler(client, on_event);
-  // ponytail: softcore. Hardcore needs a client RetroAchievements has approved; add a toggle once it is
-  rc_client_set_hardcore_enabled(client, 0);
+  // Hardcore unlocks only count once RetroAchievements approves GB5; until then its server answers "Unknown Emulator".
+  rc_client_set_hardcore_enabled(client, hardcore);
   rc_client_begin_login_with_token(client, user, token, on_login, NULL);
   memset(token, 0, sizeof token);
+}
+
+void ra_set_hardcore(int on) {
+  // rcheevos raises RC_CLIENT_EVENT_RESET when it's turned on mid-game; main resets either way.
+  if (client) rc_client_set_hardcore_enabled(client, on);
+  notify(on ? (es ? "RetroAchievements: modo hardcore. El juego se reinició" : "RetroAchievements: hardcore mode. The game was reset")
+            : (es ? "RetroAchievements: modo casual" : "RetroAchievements: casual mode"));
 }
 
 void ra_frame(void) {

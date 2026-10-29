@@ -20,7 +20,10 @@ if [[ ${1:-} != --in-docker ]]; then
     ps5gpu=${PS5GPU:-$HOME/ps5gpu}
     export PATH="/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH"
     (cd "$here" && cargo build --release --target x86_64-unknown-freebsd)
-    exec docker run --rm --platform linux/amd64 -v "$ps5gpu:/work" -v "$here:/rt" -w /rt "${IMAGE:-ps5title}" \
+    # GB5's version for RetroAchievements' User-Agent: the last tag (v0.2.1 -> 0.2.1)
+    ver=$(git -C "$here" describe --tags --abbrev=0 2>/dev/null || echo 0.0.0)
+    core=$(sed -n 's/^version = "\(.*\)"/\1/p' "$here/vendor/gba-core/Cargo.toml" | head -n 1)  # the core's version, same UA
+    exec docker run --rm --platform linux/amd64 -e GB5_VERSION="${ver#v}" -e CORE_VERSION="${core:-0.0.0}" -v "$ps5gpu:/work" -v "$here:/rt" -w /rt "${IMAGE:-ps5title}" \
         bash /rt/build.sh --in-docker
 fi
 
@@ -39,7 +42,7 @@ objs=()
 for src in /rt/ps5/main.c /rt/ps5/ra.c /rt/ps5/card.c /rt/ps5/menu.c /rt/ps5/cheats.c /rt/ps5/rewind.c $rc/src/*.c $rc/src/rapi/*.c $rc/src/rcheevos/*.c $rc/src/rhash/md5.c; do
     obj="$work/obj/$(basename "$(dirname "$src")")_$(basename "$src" .c).o"
     mkdir -p "$work/obj"
-    case $src in /rt/ps5/*) warn="-Wall -Wno-unused-function" ;; *) warn=-w ;; esac  # vendored code: no warnings
+    case $src in /rt/ps5/*) warn="-Wall -Wno-unused-function -DGB5_VERSION=\"${GB5_VERSION:-0.0.0}\" -DCORE_VERSION=\"${CORE_VERSION:-0.0.0}\"" ;; *) warn=-w ;; esac  # vendored code: no warnings
     cc -std=gnu11 -O2 $warn -I"$rc/include" -I"$rc/src" -I/rt/vendor/stb -c "$src" -o "$obj"
     objs+=("$obj")
 done

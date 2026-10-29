@@ -3,7 +3,7 @@
 #pragma once
 #include <stdint.h>
 
-enum { SIZE_PIXEL, SIZE_FILL, SIZE_STRETCH, SIZE_COUNT };  // x6 1440x960 / fill height 1620x1080 / 16:9
+enum { SIZE_PIXEL, SIZE_FILL, SIZE_STRETCH, SIZE_COUNT };  // integer x6 1440x960 / fill height 1620x1080 / 16:9
 
 struct settings {
   int size;   // SIZE_*
@@ -15,9 +15,10 @@ struct settings {
   int gyro;     // gyro carts: controller axis and sign, 0..5 = X+ X- Y+ Y- Z+ Z-
   int rumble;   // rumble carts: pass the motor to the DualSense
   int gyro_sens, tilt_sens;  // 1..10, 5 = mGBA's scale (x level / 5)
+  int hardcore;  // RetroAchievements hardcore: no state loading, rewind or cheats; turning it on resets the game
 };
 
-enum { MENU_NONE, MENU_CLOSED, MENU_RESET, MENU_QUIT, MENU_SAVE_STATE, MENU_LOAD_STATE, MENU_RECENTER, MENU_UPDATE_CHEATS };
+enum { MENU_NONE, MENU_CLOSED, MENU_RESET, MENU_QUIT, MENU_SAVE_STATE, MENU_LOAD_STATE, MENU_RECENTER, MENU_UPDATE_CHEATS, MENU_HARDCORE };
 // Cartridge extras, as gba_hw(): which sensor options OPTIONS shows.
 enum { HW_CLOCK = 1, HW_LIGHT = 2, HW_GYRO = 4, HW_RUMBLE = 8, HW_TILT = 16 };
 

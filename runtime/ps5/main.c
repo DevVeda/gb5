@@ -472,16 +472,16 @@ int main(void) {
   if (bios && bios_len != 16384) { say("bios.bin is %zu bytes, not 16384: ignored", bios_len); free(bios); bios = NULL; }
   void *m = bios ? gba_new_bios(rom, rom_len, bios, bios_len) : gba_new(rom, rom_len);
   say("bios: %s", bios ? "real (bios.bin)" : "built-in (HLE)");
-  ra_start(m, rom, rom_len);  // async: signs in through RA Hub, notifies when connected
+  settings_defaults(&st);
+  settings_read(DEFAULTS_PATH, &st);
+  settings_read(SET_PATH, &st);
+  ra_start(m, rom, rom_len, st.hardcore);  // async: signs in through RA Hub, notifies when connected
   uint8_t *sav = slurp(SAV_PATH, &sav_len);
   say("cartridge saves to: %s", gba_save_kind(m));
   if (sav) { gba_load_save(m, sav, sav_len); free(sav); say("save loaded: %zu bytes", sav_len); }
   int lang = -1, es = sceSystemServiceParamGetInt(1, &lang) == 0 && (lang == 3 || lang == 20);  // es-ES, es-419
   lang_es = es;
   unsigned hw = gba_hw(m);  // cartridge extras: solar sensor, gyro, rumble, tilt
-  settings_defaults(&st);
-  settings_read(DEFAULTS_PATH, &st);
-  settings_read(SET_PATH, &st);
   cheats_load(CHEATS_PATH, CHEATS_ON_PATH);
   size_t src_len;
   static char cheat_src[256];  // "Name (USA) (Code Breaker).cht"
@@ -512,7 +512,7 @@ int main(void) {
     uint32_t b = pad_read(), press = b & ~prev_b;
     prev_b = b;
     // ---- rewind: L3 stops on the timeline; right stick / d-pad scrub; GBA A goes back there, GBA B or L3 cancels
-    if (!rw_mode && fb && !menu_is_open() && press & PAD_L3) {
+    if (!rw_mode && fb && !menu_is_open() && !st.hardcore && press & PAD_L3) {  // no rewind in hardcore
       rewind_mark(m, fb);  // "now" is the newest point
       rw_mode = 1;
       rumble(0);
@@ -551,8 +551,9 @@ int main(void) {
       if (act == MENU_RECENTER) recenter();
       if (act == MENU_UPDATE_CHEATS) update_cheats(cheat_src, es);
       if (act == MENU_SAVE_STATE) state_save(m, menu_slot());
-      if (act == MENU_LOAD_STATE && state_load(m, menu_slot())) fb = NULL;  // the framebuffer moved: next gba_frame gives it
-      if (act == MENU_RESET) {
+      if (act == MENU_LOAD_STATE && !st.hardcore && state_load(m, menu_slot())) fb = NULL;  // the framebuffer moved: next gba_frame gives it
+      if (act == MENU_HARDCORE) ra_set_hardcore(st.hardcore);
+      if (act == MENU_RESET || (act == MENU_HARDCORE && st.hardcore)) {  // hardcore on: from the start, as RA requires
         save_flush(m);
         gba_free(m);
         m = bios ? gba_new_bios(rom, rom_len, bios, bios_len) : gba_new(rom, rom_len);
@@ -573,7 +574,7 @@ int main(void) {
     // TURBO runs several GBA frames per shown frame; only the last one's sound is played, so the
     // audio clock above keeps the shown frames at normal speed and the game runs st.turbo times faster.
     for (int t = 0; t < st.turbo; t++, frame++) {
-      cheats_apply(m, gba_keys(b));
+      if (!st.hardcore) cheats_apply(m, gba_keys(b));  // no cheats in hardcore
       if (hw) sensors(m, hw);
       fb = gba_frame(m, gba_keys(b));
       ra_frame();

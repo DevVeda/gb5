@@ -111,7 +111,7 @@ enum { PAGE_MAIN, PAGE_DISPLAY, PAGE_CHEATS, PAGE_ACH };
 #define ACH_ROWS 6  // achievements visible at once
 #define CHEAT_ROWS 9  // visible at once; the list scrolls
 enum { M_RESUME, M_SAVE, M_LOAD, M_ACH, M_CHEATS, M_DISPLAY, M_TURBO, M_RESET, M_QUIT, M_COUNT };
-enum { D_SIZE, D_LCD, D_COLOR, D_SWAP, D_RUMBLE, D_SUN, D_GYRO, D_GYRO_SENS, D_TILT_SENS, D_CENTER, D_BACK, D_COUNT };
+enum { D_SIZE, D_LCD, D_COLOR, D_SWAP, D_HARDCORE, D_RUMBLE, D_SUN, D_GYRO, D_GYRO_SENS, D_TILT_SENS, D_CENTER, D_BACK, D_COUNT };
 
 static int open_, page, sel, prev_buttons, held_frames, slot = 1, slots, ach_count = -1;
 static int main_sel;  // where the cursor was on the main page: the menu reopens there
@@ -187,10 +187,10 @@ static int menu_input_(uint32_t b, struct settings *s) {
     if (press & PAD_CROSS) {
       if (sel == M_RESUME) { open_ = 0; return MENU_CLOSED; }
       if (sel == M_DISPLAY) { page = PAGE_DISPLAY; sel = 0; }
-      else if (sel == M_CHEATS) { page = PAGE_CHEATS; sel = 0; status[0] = 0; }
+      else if (sel == M_CHEATS && !s->hardcore) { page = PAGE_CHEATS; sel = 0; status[0] = 0; }
       else if (sel == M_ACH) { page = PAGE_ACH; sel = 0; ach_count = ra_list_refresh(); }
       if (sel == M_SAVE) { open_ = 0; return MENU_SAVE_STATE; }
-      if (sel == M_LOAD && slots & 1 << slot) { open_ = 0; return MENU_LOAD_STATE; }  // empty slot: nothing to load
+      if (sel == M_LOAD && slots & 1 << slot && !s->hardcore) { open_ = 0; return MENU_LOAD_STATE; }  // empty slot: nothing to load
       if (sel == M_RESET) { open_ = 0; return MENU_RESET; }
       if (sel == M_QUIT) { open_ = 0; return MENU_QUIT; }
     }
@@ -213,6 +213,11 @@ static int menu_input_(uint32_t b, struct settings *s) {
     if (dir && row == D_GYRO_SENS) s->gyro_sens = s->gyro_sens + dir < 1 ? 1 : s->gyro_sens + dir > 10 ? 10 : s->gyro_sens + dir;
     if (dir && row == D_TILT_SENS) s->tilt_sens = s->tilt_sens + dir < 1 ? 1 : s->tilt_sens + dir > 10 ? 10 : s->tilt_sens + dir;
     if (press & PAD_CROSS && row == D_CENTER) return MENU_RECENTER;
+    if (dir && row == D_HARDCORE) {  // on: main resets the game (RetroAchievements' rule), so back to it
+      s->hardcore = !s->hardcore;
+      if (s->hardcore) { open_ = 0; page = PAGE_MAIN; }
+      return MENU_HARDCORE;
+    }
   }
   return MENU_NONE;
 }
@@ -230,7 +235,8 @@ void menu_draw(uint16_t *fb, const struct settings *s, int es) {
       if (i == M_TURBO) snprintf(line, sizeof line, "%s x%d", t[i], s->turbo);
       else if (i == M_SAVE || i == M_LOAD) snprintf(line, sizeof line, "%s %d", t[i], slot);
       else snprintf(line, sizeof line, "%s", t[i]);
-      if (i == M_LOAD && !(slots & 1 << slot)) glyphs(fb, x + 16, y + 8 + i * 15, line, SHADOW);  // empty slot: greyed out
+      if ((i == M_LOAD && (!(slots & 1 << slot) || s->hardcore)) || (i == M_CHEATS && s->hardcore))
+        glyphs(fb, x + 16, y + 8 + i * 15, line, SHADOW);  // empty slot, or not in hardcore: greyed out
       else label(fb, x + 16, y + 8 + i * 15, line);
       if (i == sel) cursor(fb, x + 7, y + 8 + i * 15);
     }
@@ -310,7 +316,7 @@ void menu_draw(uint16_t *fb, const struct settings *s, int es) {
     if (top + rows < total) label(fb, x + w - 14, y + h - 12, "v");  // more below
     if (status[0]) glyphs(fb, x + 16, y + h - 13, status, EDGE);
   } else {
-    static const char *size_en[] = {"PIXEL PERFECT", "FILL HEIGHT", "16:9"}, *size_es[] = {"PIXEL PERFECTO", "LLENAR ALTO", "16:9"};
+    static const char *size_en[] = {"INTEGER X6", "FILL HEIGHT", "16:9"}, *size_es[] = {"ENTERO X6", "LLENAR ALTO", "16:9"};
     const char *on = es ? "SI" : "ON", *off = es ? "NO" : "OFF";
     static const char *axes[] = {"X+", "X-", "Y+", "Y-", "Z+", "Z-"};
     int rows[D_COUNT], nrows = options(rows);
@@ -322,6 +328,7 @@ void menu_draw(uint16_t *fb, const struct settings *s, int es) {
       if (i == D_LCD) snprintf(line, sizeof line, "%s: < %s >", es ? "FILTRO LCD" : "LCD GRID", s->lcd ? on : off);
       if (i == D_COLOR) snprintf(line, sizeof line, "%s: < %s >", es ? "COLOR GBA" : "GBA COLORS", s->color ? on : off);
       if (i == D_SWAP) snprintf(line, sizeof line, "%s: < %s >", es ? "BOTON A" : "A BUTTON", s->swap_ab ? BTN_CROSS : BTN_CIRCLE);
+      if (i == D_HARDCORE) snprintf(line, sizeof line, "HARDCORE: < %s >", s->hardcore ? on : off);
       if (i == D_RUMBLE) snprintf(line, sizeof line, "%s: < %s >", es ? "VIBRACION" : "RUMBLE", s->rumble ? on : off);
       if (i == D_SUN) snprintf(line, sizeof line, "%s: < %d >", es ? "SOL" : "SUN", s->sun);
       if (i == D_GYRO) snprintf(line, sizeof line, "%s: < %s >", es ? "GIRO" : "GYRO", axes[s->gyro]);
@@ -364,7 +371,7 @@ void rewind_draw(uint16_t *fb, int sel, int es, int swap_ab) {
 
 // ---------------- settings.txt ----------------
 void settings_defaults(struct settings *s) {
-  *s = (struct settings){SIZE_STRETCH, 0, 0, 1, 1, 5, 4, 1, 5, 5};  // 16:9, no grid, own colours, x1, A = Cross, half sun, gyro Z+, rumble on, sens 5
+  *s = (struct settings){SIZE_STRETCH, 0, 0, 1, 1, 5, 4, 1, 5, 5, 0};  // 16:9, no grid, own colours, x1, A = Cross, half sun, gyro Z+, rumble on, sens 5, casual
 }
 
 void settings_read(const char *path, struct settings *s) {
@@ -382,6 +389,7 @@ void settings_read(const char *path, struct settings *s) {
     if (!strcmp(k, "rumble")) s->rumble = !!v;
     if (!strcmp(k, "gyrosens") && v >= 1 && v <= 10) s->gyro_sens = v;
     if (!strcmp(k, "tiltsens") && v >= 1 && v <= 10) s->tilt_sens = v;
+    if (!strcmp(k, "hardcore")) s->hardcore = !!v;
   }
   if (f) fclose(f);
 }
@@ -389,8 +397,8 @@ void settings_read(const char *path, struct settings *s) {
 void settings_save(const char *path, const struct settings *s) {
   FILE *f = fopen(path, "w");
   if (!f) return;
-  fprintf(f, "size=%d\nlcd=%d\ncolor=%d\nturbo=%d\nswapab=%d\nsun=%d\ngyro=%d\nrumble=%d\ngyrosens=%d\ntiltsens=%d\n", s->size, s->lcd,
-          s->color, s->turbo, s->swap_ab, s->sun, s->gyro, s->rumble, s->gyro_sens, s->tilt_sens);
+  fprintf(f, "size=%d\nlcd=%d\ncolor=%d\nturbo=%d\nswapab=%d\nsun=%d\ngyro=%d\nrumble=%d\ngyrosens=%d\ntiltsens=%d\nhardcore=%d\n", s->size,
+          s->lcd, s->color, s->turbo, s->swap_ab, s->sun, s->gyro, s->rumble, s->gyro_sens, s->tilt_sens, s->hardcore);
   fclose(f);
   chmod(path, 0666);
 }

@@ -5,7 +5,10 @@
 
 // Sign in with RA Hub's session and load the game by the ROM's MD5. Async: notifies when connected.
 // Does nothing (but log) when RA Hub isn't running.
-void ra_start(const void *machine, const uint8_t *rom, size_t len);
+// hardcore: start in RetroAchievements' hardcore mode (the caller blocks state loading, rewind, cheats).
+void ra_start(const void *machine, const uint8_t *rom, size_t len, int hardcore);
+// The player switched mode in OPTIONS. Turning it on: the caller resets the game (then ra_reset).
+void ra_set_hardcore(int on);
 // Once per emulated frame.
 void ra_frame(void);
 // The game was reset (new machine at the same ROM): restart the achievement session on it.

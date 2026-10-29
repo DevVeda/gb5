@@ -114,7 +114,7 @@ changed and skips (and reports) the ones that are open.
 | `--name`, `--icon`, `--hero`, `--launch` | your own name and images (any format; centre-cropped) |
 | `--music` | a ready `snd0.at9` (48 kHz, 2 MiB max; there's no free ATRAC9 encoder) |
 | `--size pixel\|fill\|16:9` | picture size to start with |
-| `--a-button cross\|circle` | which button is the GBA's A |
+| `--a-button cross\|circle` | which button is the GBA's A: ✕ (`cross`) or ○ (`circle`) |
 | `--lcd`, `--gba-colors` (`--no-lcd`…) | LCD grid / GBA screen colours |
 | `--save` | import a `.sav` (mGBA, VBA, cartridge). **On deploy it replaces the save on the console** |
 | `--bios` | your BIOS; `--bios none` to leave it out |
@@ -123,7 +123,7 @@ changed and skips (and reports) the ones that are open.
 Takes `.gba` and `.zip` (as No-Intro sets come). While building it tells you the game's save type, the
 cheats it gets and the extra hardware it uses.
 
-Left out, those four come from the web UI's **Settings** tab (else `16:9`, Cross, both off). They are only the starting point
+Left out, those four come from the web UI's **Settings** tab (else `16:9`, A on ✕, both off). They are only the starting point
 (`defaults.txt` in the title). Whatever you change in the game (GB5 Menu → Options) goes to
 `settings.txt` and always wins, even if you build and deploy again.
 
@@ -134,7 +134,8 @@ python3 gb5.py serve   # http://127.0.0.1:8080
 ```
 
 Pick the ROM, artwork (yours or SteamGridDB's), music and save; see how it will
-look on the PS5 home screen and which cheats it gets; then build or upload to the console. The
+look on the PS5 home screen and which cheats it gets; then **Create and download .zip** (the title folder, to copy
+yourself) or upload it straight to the console. The
 **Update all games on the PS5** button does what `update-all` does. The **Settings** tab holds the
 GB5 Menu options every game starts with, the GBA BIOS (saved as `bios/gba_bios.bin`) and your
 SteamGridDB API key.
@@ -150,14 +151,14 @@ unique per game and version, so building again replaces the same icon. Codes wit
 
 | Controller | GBA |
 |---|---|
-| Cross / Triangle | A |
-| Circle / Square | B |
+| ✕ / △ | A |
+| ○ / □ | B |
 | L1 / R1 | L / R |
 | Options | Start |
 | Touchpad (click) | Select |
 | D-pad / left stick | D-pad |
 
-**Options** can switch it to A = Circle, B = Cross (Nintendo's positions).
+**Options** can switch it to A = ○, B = ✕ (Nintendo's positions).
 
 **L2 + R2** opens the **GB5 Menu** (the game pauses; reopened, the cursor is where you left it):
 
@@ -165,7 +166,8 @@ unique per game and version, so building again replaces the same icon. Codes wit
 - **Achievements**: the RetroAchievements list with progress
 - **Cheats**: turn them on and off one by one (all start off). **Update from the internet** fetches the
   game's latest file from libretro-database through RA Hub, without the computer, and keeps the ones you had on.
-- **Options**: size (16:9, fill height, pixel perfect ×6), LCD grid, GBA colours, A button ✕/○, and
+- **Options**: size (16:9, fill height, integer ×6: every GBA pixel exactly 6×6), LCD grid, GBA colours,
+  A button ✕/○, hardcore, and
   only in the games that have them: rumble on/off, sunlight, gyro axis and sensitivity, tilt sensitivity
   and levelling
 - **Turbo** ×1 / ×2 / ×4
@@ -199,7 +201,10 @@ With [RA Hub](https://github.com/DevVeda/rahub) running on the PS5 and signed in
 - Badges come from `/badge` and cheat updates from `/cheats`.
 - An unlock shows a toast like the PS5's trophy one (badge + name), top right.
 
-Play is **softcore**. RetroAchievements shows "Unknown Emulator" until it approves `GB5` as a client.
+**Hardcore mode** (Settings, or GB5 Menu → Options): no state loading, rewind or cheats; turning it on in a
+game resets it, turning it off is always allowed. The game says which mode it started in. GB5 identifies
+itself as `GB5/<version> (PS5) gba-core/<version> rcheevos/<version>` (RA Hub passes it on). Until RetroAchievements approves
+GB5 its server shows "Unknown Emulator" and only casual (softcore) unlocks count.
 Achievements depend on the ROM's MD5: use clean (No-Intro) dumps.
 
 ### What's in each title
@@ -257,14 +262,26 @@ What's pending is in `TODO.md` (local, not versioned).
 - **The icon doesn't change:** `deploy` reinstalls only when the artwork changed, because the home
   screen caches it.
 
+### Privacy and cost
+
+- GB5 has no servers, telemetry or accounts. What leaves your machine (SteamGridDB, GitHub, your PS5,
+  RetroAchievements through RA Hub) is listed in [PRIVACY.md](PRIVACY.md).
+- Everything in GB5 is free. Ko-fi donations are welcome but unlock nothing.
+
 ### Licences
 
-- The runtime is **GPL-3.0-or-later**: it links PS5_Vulkan's CRT and platform layer.
-- `gba-core` and `armv4t`: MIT / Apache-2.0.
-- rcheevos: MIT.
-- stb: public domain / MIT.
-- bc7enc: MIT / Unlicense.
-- `runtime/overrides.tsv` derives from mGBA's table: MPL-2.0.
+- The runtime is **GPL-3.0-or-later**: it links [PS5_Vulkan](https://github.com/mihawk-99/PS5_Vulkan)'s
+  CRT and platform layer. `sce_module/libc.prx` is GPL-3.0-or-later too, generated from that repo's source
+  (see its [`runtime/README.md`](https://github.com/mihawk-99/PS5_Vulkan/blob/main/runtime/README.md)).
+- [`gba-core` and `armv4t`](https://github.com/JRickey/gba-recomp) (the emulation core, patched): MIT / Apache-2.0.
+- [rcheevos](https://github.com/RetroAchievements/rcheevos): MIT.
+- [stb](https://github.com/nothings/stb): public domain / MIT.
+- [bc7enc](https://github.com/richgel999/bc7enc): MIT / Unlicense.
+- `runtime/overrides.tsv` derives from [mGBA](https://github.com/mgba-emu/mgba)'s table: MPL-2.0.
+- Cheats are downloaded from [libretro-database](https://github.com/libretro/libretro-database)
+  (CC-BY-SA-4.0) when you build; GB5 ships none.
+- The release zips bundle Python and [PyInstaller](https://github.com/pyinstaller/pyinstaller)'s
+  bootloader (GPL-2.0-or-later with an exception that allows distributing it inside other programs).
 
 ### AI disclosure
 
@@ -378,7 +395,7 @@ Opciones de `build`:
 | `--name`, `--icon`, `--hero`, `--launch` | nombre e imágenes propias (cualquier formato; se recortan al centro) |
 | `--music` | `snd0.at9` ya codificado (48 kHz, máx. 2 MiB; no hay encoder ATRAC9 libre) |
 | `--size pixel\|fill\|16:9` | tamaño de la imagen al empezar |
-| `--a-button cross\|circle` | qué botón es la A de la GBA |
+| `--a-button cross\|circle` | qué botón es la A de la GBA: ✕ (`cross`) u ○ (`circle`) |
 | `--lcd`, `--gba-colors` (`--no-lcd`…) | filtro LCD / colores de la pantalla de GBA |
 | `--save` | importar un `.sav` (mGBA, VBA, cartucho). **Al desplegar reemplaza la partida de la consola** |
 | `--bios` | tu BIOS; `--bios none` para no incluirla |
@@ -387,7 +404,7 @@ Opciones de `build`:
 Acepta `.gba` y `.zip` (como vienen los sets No-Intro). Al construir dice qué tipo de guardado tiene el
 juego, qué cheats lleva y qué hardware extra usa.
 
-Si no las pasas, esas cuatro salen de la pestaña **Ajustes** de la web (si no, `16:9`, Cruz, ambos apagados). Son solo el punto de partida
+Si no las pasas, esas cuatro salen de la pestaña **Ajustes** de la web (si no, `16:9`, A en ✕, ambos apagados). Son solo el punto de partida
 (`defaults.txt` en el título). Lo que cambies en el juego (GB5 Menu → Opciones) se guarda en
 `settings.txt` y siempre gana, aunque vuelvas a construir y desplegar.
 
@@ -398,7 +415,8 @@ python3 gb5.py serve   # http://127.0.0.1:8080
 ```
 
 Eliges ROM, arte (tuyo o de SteamGridDB), música y partida; ves cómo quedará
-en el menú de la PS5 y la lista de cheats; y construyes o subes a la consola. El botón **Actualizar todos
+en el menú de la PS5 y la lista de cheats; y luego **Crear y descargar .zip** (la carpeta del título,
+para copiarla tú) o la subes directo a la consola. El botón **Actualizar todos
 los juegos en la PS5** hace lo mismo que `update-all`. La pestaña **Ajustes** guarda las opciones del GB5 Menu
 con las que empieza cada juego, la BIOS de GBA (se guarda como `bios/gba_bios.bin`) y tu API key
 de SteamGridDB.
@@ -414,14 +432,14 @@ rango 88000–99999; sin código (homebrew): `GBAX` + un número sacado del ROM.
 
 | Mando | GBA |
 |---|---|
-| Cruz / Triángulo | A |
-| Círculo / Cuadrado | B |
+| ✕ / △ | A |
+| ○ / □ | B |
 | L1 / R1 | L / R |
 | Options | Start |
 | Touchpad (clic) | Select |
 | Cruceta / stick izquierdo | cruceta |
 
-En **Opciones** se puede cambiar a A = Círculo, B = Cruz (las posiciones de Nintendo).
+En **Opciones** se puede cambiar a A = ○, B = ✕ (las posiciones de Nintendo).
 
 **L2 + R2** abre el **GB5 Menu** (el juego se pausa; al reabrirlo, el cursor sigue donde lo dejaste):
 
@@ -430,7 +448,8 @@ En **Opciones** se puede cambiar a A = Círculo, B = Cruz (las posiciones de Nin
 - **Cheats**: activar o desactivar uno a uno (todos empiezan apagados). **Actualizar desde internet**
   baja la versión más reciente del juego en libretro-database a través de RA Hub, sin el computador, y mantiene
   activados los que tenías.
-- **Opciones**: tamaño (16:9, llenar alto, píxel perfecto ×6), filtro LCD, colores de GBA, botón A ✕/○,
+- **Opciones**: tamaño (16:9, llenar alto, entero ×6: cada píxel de GBA mide exactamente 6×6), filtro LCD,
+  colores de GBA, botón A ✕/○, hardcore,
   y solo en los juegos que los tienen: vibración sí/no, sol, eje y sensibilidad del giroscopio,
   sensibilidad y centrado de la inclinación
 - **Turbo** ×1 / ×2 / ×4
@@ -464,8 +483,10 @@ Con [RA Hub](https://github.com/DevVeda/rahub) corriendo en la PS5 y la sesión 
 - Los badges llegan por `/badge` y la actualización de cheats por `/cheats`.
 - Al desbloquear un logro sale un aviso como el de trofeos de la PS5 (badge + nombre), arriba a la derecha.
 
-Se juega en **softcore**. RetroAchievements muestra "Unknown Emulator" hasta que apruebe `GB5`
-como cliente. Los logros dependen del MD5 del ROM: usa dumps limpios (No-Intro).
+**Modo hardcore** (Ajustes, o GB5 Menu → Opciones): sin cargar estados, rebobinar ni cheats; activarlo en un
+juego lo reinicia, desactivarlo se puede siempre. El juego avisa en qué modo empezó. GB5 se identifica como
+`GB5/<versión> (PS5) gba-core/<versión> rcheevos/<versión>` (RA Hub lo reenvía). Hasta que RetroAchievements apruebe GB5, su
+servidor muestra "Unknown Emulator" y solo cuentan los logros casual (softcore). Los logros dependen del MD5 del ROM: usa dumps limpios (No-Intro).
 
 ### Qué hay en cada título
 
@@ -521,14 +542,26 @@ Lo pendiente está en `TODO.md` (local, no se versiona).
 - **`is in use` al desplegar:** el juego está abierto en la PS5; ciérralo.
 - **El icono no cambia:** `deploy` reinstala solo cuando cambió el arte, porque el menú lo guarda en caché.
 
+### Privacidad y coste
+
+- GB5 no tiene servidores, telemetría ni cuentas. Lo que sale de tu equipo (SteamGridDB, GitHub, tu PS5,
+  RetroAchievements a través de RA Hub) está en [PRIVACY.md](PRIVACY.md#espanol).
+- Todo en GB5 es gratis. Las donaciones en Ko-fi se agradecen, pero no desbloquean nada.
+
 ### Licencias
 
-- El runtime es **GPL-3.0-or-later**: enlaza con el CRT y el platform layer de PS5_Vulkan.
-- `gba-core` y `armv4t`: MIT / Apache-2.0.
-- rcheevos: MIT.
-- stb: dominio público / MIT.
-- bc7enc: MIT / Unlicense.
-- `runtime/overrides.tsv` deriva de la tabla de mGBA: MPL-2.0.
+- El runtime es **GPL-3.0-or-later**: enlaza con el CRT y el platform layer de
+  [PS5_Vulkan](https://github.com/mihawk-99/PS5_Vulkan). `sce_module/libc.prx` también es GPL-3.0-or-later,
+  generado desde el código de ese repo (ver su [`runtime/README.md`](https://github.com/mihawk-99/PS5_Vulkan/blob/main/runtime/README.md)).
+- [`gba-core` y `armv4t`](https://github.com/JRickey/gba-recomp) (el núcleo de emulación, parcheado): MIT / Apache-2.0.
+- [rcheevos](https://github.com/RetroAchievements/rcheevos): MIT.
+- [stb](https://github.com/nothings/stb): dominio público / MIT.
+- [bc7enc](https://github.com/richgel999/bc7enc): MIT / Unlicense.
+- `runtime/overrides.tsv` deriva de la tabla de [mGBA](https://github.com/mgba-emu/mgba): MPL-2.0.
+- Los cheats se descargan de [libretro-database](https://github.com/libretro/libretro-database)
+  (CC-BY-SA-4.0) al construir; GB5 no incluye ninguno.
+- Los zips de las releases incluyen Python y el bootloader de [PyInstaller](https://github.com/pyinstaller/pyinstaller)
+  (GPL-2.0-or-later con una excepción que permite distribuirlo dentro de otros programas).
 
 ### Uso de IA
 
