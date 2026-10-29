@@ -41,10 +41,8 @@ static int loaded;                // the game is loaded: earlier sessions' recor
 static int lb_popups = 1;         // leaderboard notifications (the trackers always show)
 static time_t session_start;
 static char hash[33];             // the ROM's MD5: how RA knows the game
-#ifndef APP0
-#define APP0 "/app0"  // the title's folder (a host test points it elsewhere)
-#endif
-#define PENDING_PATH APP0 "/ra_pending.txt"
+static char dir[160] = ".";  // the PS5 user's folder in the title (main.c): queue and cache live there
+static char pending_path[192];
 #ifndef GB5_VERSION
 #define GB5_VERSION "0.0.0"  // build.sh passes the last git tag
 #endif
@@ -169,11 +167,11 @@ static char *read_file(const char *path, size_t *len) {
 
 // ---------------- offline: RA's last answers ----------------
 // The game's data and the player's unlocks, as RA sent them at the last online start (never the token).
-static void cache_path(char *out, size_t n, const char *r) { snprintf(out, n, APP0 "/ra_%s_%s.json", r, user); }
+static void cache_path(char *out, size_t n, const char *r) { snprintf(out, n, "%s/ra_%s_%s.json", dir, r, user); }
 
 // login2 without a connection: RA Hub's session is the proof; achievementsets / startsession: the cache.
 static char *offline_answer(const char *r, size_t *len) {
-  char path[160];
+  char path[256];
   if (!strcmp(r, "login2")) {
     char *b = malloc(256);
     if (b) *len = (size_t)snprintf(b, 256, "{\"Success\":true,\"User\":\"%s\",\"Token\":\"%s\"}", user, token);
@@ -217,7 +215,7 @@ static void pending_edit(const char *key, const char *add) {
   size_t k = strlen(key), o = 0, n = 0;
   int had = 0;
   pthread_mutex_lock(&pending_mx);
-  char *d = read_file(PENDING_PATH, &n);
+  char *d = read_file(pending_path, &n);
   const char *keep = d ? d + (n >= sizeof in ? n - sizeof in + 1 : 0) : "";
   if (d && keep > d && strchr(keep, '\n')) keep = strchr(keep, '\n') + 1;  // never half a line
   snprintf(in, sizeof in, "%s", keep);
@@ -232,7 +230,7 @@ static void pending_edit(const char *key, const char *add) {
     o += (size_t)(e - l);
   }
   if (add && !had) o += (size_t)snprintf(out + o, sizeof out - o, "%s\n", add);
-  if (add ? !had : had) write_file(PENDING_PATH, out, o);
+  if (add ? !had : had) write_file(pending_path, out, o);
   pthread_mutex_unlock(&pending_mx);
 }
 
@@ -262,7 +260,7 @@ static void *call_main(void *arg) {
   if (answered(status, body)) {
     if (record_key(c->post, key, sizeof key)) pending_edit(key, NULL);
     if (status == 200 && strstr(body, "\"Success\":true") && (!strcmp(r, "achievementsets") || !strcmp(r, "startsession"))) {
-      char path[160];
+      char path[256];
       cache_path(path, sizeof path, r);
       write_file(path, body, len);
     }
@@ -444,7 +442,7 @@ static void replay(void) {
   const rc_client_user_t *me = rc_client_get_user_info(client);
   size_t n = 0;
   pthread_mutex_lock(&pending_mx);
-  char *d = read_file(PENDING_PATH, &n);
+  char *d = read_file(pending_path, &n);
   pthread_mutex_unlock(&pending_mx);
   for (char *l = d, *e; me && l && *l; l = e) {
     char type, who[64], mac[33], want[33], key[48];
@@ -457,7 +455,8 @@ static void replay(void) {
     snprintf(key, sizeof key, "%c %u %d", type, id, v);
     *strrchr(l, ' ') = 0;  // the record without its mac
     record_mac(want, me->token, l);
-    if (strcmp(who, me->username) || strcmp(mac, want)) {  // another player's, or edited
+    if (strcmp(who, me->username)) continue;  // another RA account's: kept for when it signs in here again
+    if (strcmp(mac, want)) {  // edited
       say("ra: dropping pending record \"%s\"", l);
       pending_edit(key, NULL);
       continue;
@@ -493,11 +492,15 @@ static void on_login(int result, const char *err, rc_client_t *c, void *ud) {
   rc_client_begin_load_game(c, hash, on_load, NULL);
 }
 
-void ra_start(const void *m, const uint8_t *rom, size_t len, int hardcore) {
+void ra_start(const void *m, const uint8_t *rom, size_t len, int hardcore, int32_t ps5_user, const char *user_dir) {
   int lang = -1, status = 0;
+  char path[32];
   es = sceSystemServiceParamGetInt(1, &lang) == 0 && (lang == 3 || lang == 20);  // es-ES, es-419
+  snprintf(dir, sizeof dir, "%s", user_dir);
+  snprintf(pending_path, sizeof pending_path, "%s/ra_pending.txt", dir);
   size_t slen;
-  char *s = hub("GET", "/session", NULL, &status, &slen);
+  snprintf(path, sizeof path, "/session?u=%08x", (uint32_t)ps5_user);  // this PS5 user's RetroAchievements account
+  char *s = hub("GET", path, NULL, &status, &slen);
   if (!s) { say("ra: RA Hub is not running, no achievements"); return; }
   int ok = status == 200 && json_str(s, "user", user, sizeof user) && json_str(s, "token", token, sizeof token);
   memset(s, 0, strlen(s));  // the token lives no longer than needed

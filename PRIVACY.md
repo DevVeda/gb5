@@ -49,10 +49,10 @@ reachable again.
 
 - **Your computer:** `settings.json` (options and the SteamGridDB key; the key is only ever sent to
   SteamGridDB and never back to the web page), `bios/`, `cheatdb/` (cache), `out/` (built titles).
-- **Your PS5:** each title's folder (`/data/homebrew/<ID>/`: ROM, saves, states, `settings.txt`,
-  `log.txt`) and `/data/gb5/register.txt`. For offline play, the title folder also keeps RetroAchievements'
+- **Your PS5:** each title's folder (`/data/homebrew/<ID>/`: ROM, `log.txt`, and per PS5 profile in
+  `user/<id>/` the saves, states, `settings.txt`) and `/data/gb5/register.txt`. For offline play, each profile's folder also keeps RetroAchievements'
   last answers about the game and your unlocks (`ra_achievementsets_<user>.json`,
-  `ra_startsession_<user>.json`) and the unsent unlocks (`ra_pending.txt`). RA Hub keeps the
+  `ra_startsession_<user>.json`) and the unsent unlocks (`ra_pending.txt`). RA Hub keeps each profile's
   RetroAchievements session token on the console only; GB5 never writes it to a file.
 
 ### Retention, server location and GDPR
@@ -113,11 +113,11 @@ vuelve a estar accesible.
 
 - **Tu ordenador:** `settings.json` (opciones y la clave de SteamGridDB; la clave solo se envía a
   SteamGridDB y nunca vuelve a la web), `bios/`, `cheatdb/` (caché), `out/` (títulos construidos).
-- **Tu PS5:** la carpeta de cada título (`/data/homebrew/<ID>/`: ROM, partidas, estados, `settings.txt`,
-  `log.txt`) y `/data/gb5/register.txt`. Para jugar sin conexión, la carpeta del título guarda además las
+- **Tu PS5:** la carpeta de cada título (`/data/homebrew/<ID>/`: ROM, `log.txt` y, por perfil de la PS5 en
+  `user/<id>/`, partidas, estados y `settings.txt`) y `/data/gb5/register.txt`. Para jugar sin conexión, la carpeta de cada perfil guarda además las
   últimas respuestas de RetroAchievements sobre el juego y tus logros (`ra_achievementsets_<usuario>.json`,
   `ra_startsession_<usuario>.json`) y los logros sin enviar (`ra_pending.txt`). RA Hub guarda el token de
-  sesión de RetroAchievements solo en la consola; GB5 nunca lo escribe en un archivo.
+  sesión de RetroAchievements de cada perfil solo en la consola; GB5 nunca lo escribe en un archivo.
 
 ### Conservación, ubicación de servidores y RGPD
 

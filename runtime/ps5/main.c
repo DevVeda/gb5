@@ -1,5 +1,6 @@
 // GB5 title frontend: gba_rt (the GBA) -> VideoOut, AudioOut, DualSense.
-// The title folder (/app0 while it runs) holds game.gba; the battery save goes to game.sav beside it.
+// The title folder (/app0 while it runs) holds game.gba; each PS5 user's battery save, states and options
+// go to /app0/user/<user id>/.
 // VideoOut copy after an earlier port of ours (itself after PSXS5's ps5_video.c, GPL-3.0-or-later);
 // pad and audio declarations as PS5_VulkanTemplate's ps5/src/platform.c (MIT) drives them.
 // SPDX-License-Identifier: GPL-3.0-or-later
@@ -66,15 +67,15 @@ int sceAudioOutOpen(int32_t user, int32_t type, int32_t index, uint32_t grain, u
 int sceAudioOutOutput(int32_t port, const void *samples);
 
 #define ROM_PATH "/app0/game.gba"
-#define SAV_PATH "/app0/game.sav"
 #define BIOS_PATH "/app0/bios.bin"  // optional: the player's own GBA BIOS (16 KB), for the boot intro
 #define LOG_PATH "/app0/log.txt"
-#define SET_PATH "/app0/settings.txt"  // the extra menu's choices (menu.c)
 #define DEFAULTS_PATH "/app0/defaults.txt"  // the options gb5.py build chose; settings.txt wins
-#define STATE_PATH "/app0/state%d.bin" // save states, slots 1..3
 #define CHEATS_PATH "/app0/cheats.txt"   // gb5.py writes it
-#define CHEATS_ON_PATH "/app0/cheats_on.txt"
 #define CHEATS_SRC_PATH "/app0/cheats_src.txt" // the libretro .cht name gb5.py matched: the menu can refresh it
+// Each PS5 user has their own folder: game.sav, state1-3.bin (slots), settings.txt (the extra menu's
+// choices, menu.c), cheats_on.txt and the RetroAchievements queue. The rest of the title is shared.
+#define USER_DIR "/app0/user"
+static char udir[48], sav_path[80], set_path[80], cheats_on_path[80];
 
 static FILE *logfile;
 void say(const char *fmt, ...) {  // also used by ra.c
@@ -346,12 +347,14 @@ static void save_flush(void *m) {
   uint32_t h = 2166136261u;
   for (size_t i = 0; i < len; i++) h = (h ^ s[i]) * 16777619u;
   if (h == last_hash) return;
-  FILE *f = fopen(SAV_PATH ".tmp", "wb");
+  char tmp[88];
+  snprintf(tmp, sizeof tmp, "%s.tmp", sav_path);
+  FILE *f = fopen(tmp, "wb");
   if (!f) { say("save: cannot write"); return; }
   int ok = fwrite(s, 1, len, f) == len;
   ok &= fclose(f) == 0;
-  if (ok && rename(SAV_PATH ".tmp", SAV_PATH) == 0) {
-    chmod(SAV_PATH, 0666);  // FTP (another process) must be able to read it
+  if (ok && rename(tmp, sav_path) == 0) {
+    chmod(sav_path, 0666);  // FTP (another process) must be able to read it
     last_hash = h;
   } else {
     say("save: write failed");
@@ -380,7 +383,7 @@ static void sensors(void *m, unsigned hw) {
     int level = last_pad.touch[0].x * 11 / 1920;  // finger across the touchpad: dark .. full sun
     level = level < 0 ? 0 : level > 10 ? 10 : level;
     if (level != last_touch || st.sun != level) sun_frames = 120;  // show the meter for 2 s
-    if (st.sun != level) { st.sun = level; settings_save(SET_PATH, &st); }
+    if (st.sun != level) { st.sun = level; settings_save(set_path, &st); }
     last_touch = level;
   } else if (!last_pad.touches) {
     last_touch = -1;
@@ -427,7 +430,7 @@ static int states_present(void) {
   char path[64];
   struct stat sb;
   for (int s = 1; s <= 3; s++) {
-    snprintf(path, sizeof path, STATE_PATH, s);
+    snprintf(path, sizeof path, "%s/state%d.bin", udir, s);
     if (stat(path, &sb) == 0 && sb.st_size > 12) mask |= 1 << s;
   }
   return mask;
@@ -439,7 +442,7 @@ static void state_save(void *m, int slot) {
   uint8_t *mb = gba_state_save(m, &mlen), *rb = rlen ? malloc(rlen) : NULL;
   if (rb && ra_state_save(rb, rlen)) { free(rb); rb = NULL; }
   if (!rb) rlen = 0;
-  snprintf(path, sizeof path, STATE_PATH, slot);
+  snprintf(path, sizeof path, "%s/state%d.bin", udir, slot);
   snprintf(tmp, sizeof tmp, "%s.tmp", path);
   FILE *f = mb ? fopen(tmp, "wb") : NULL;
   uint32_t ml = (uint32_t)mlen, rl = (uint32_t)rlen;
@@ -455,7 +458,7 @@ static void state_save(void *m, int slot) {
 static int state_load(void *m, int slot) {
   char path[64];
   size_t len;
-  snprintf(path, sizeof path, STATE_PATH, slot);
+  snprintf(path, sizeof path, "%s/state%d.bin", udir, slot);
   uint8_t *d = slurp(path, &len);
   uint32_t ml = 0, rl = 0;
   int ok = d && len >= 12 && !memcmp(d, "GBAS", 4);
@@ -469,6 +472,26 @@ static int state_load(void *m, int slot) {
   return ok;
 }
 
+// The folder of the PS5 user who opened the game. Files still in the title folder (an older GB5, or a .sav
+// that gb5.py deploy uploaded) move to whoever opens the game first, and are theirs from then on.
+static void user_files(int32_t user) {
+  static const char *mine[] = {"game.sav", "settings.txt", "state1.bin", "state2.bin", "state3.bin", "cheats_on.txt", "ra_pending.txt"};
+  char from[64], to[80];
+  snprintf(udir, sizeof udir, USER_DIR "/%08x", (uint32_t)user);
+  mkdir(USER_DIR, 0777);
+  mkdir(udir, 0777);
+  chmod(USER_DIR, 0777);  // FTP (another process) lists and backs them up
+  chmod(udir, 0777);
+  for (size_t i = 0; i < sizeof mine / sizeof *mine; i++) {
+    snprintf(from, sizeof from, "/app0/%s", mine[i]);
+    snprintf(to, sizeof to, "%s/%s", udir, mine[i]);
+    if (rename(from, to) == 0) say("%s: now user %08x's", mine[i], (uint32_t)user);
+  }
+  snprintf(sav_path, sizeof sav_path, "%s/game.sav", udir);
+  snprintf(set_path, sizeof set_path, "%s/settings.txt", udir);
+  snprintf(cheats_on_path, sizeof cheats_on_path, "%s/cheats_on.txt", udir);
+}
+
 int main(void) {
   if ((logfile = fopen(LOG_PATH, "w"))) chmod(LOG_PATH, 0666);
   sceSystemServiceHideSplashScreen();
@@ -480,18 +503,22 @@ int main(void) {
   if (bios && bios_len != 16384) { say("bios.bin is %zu bytes, not 16384: ignored", bios_len); free(bios); bios = NULL; }
   void *m = bios ? gba_new_bios(rom, rom_len, bios, bios_len) : gba_new(rom, rom_len);
   say("bios: %s", bios ? "real (bios.bin)" : "built-in (HLE)");
+  int32_t user = 0xff;
+  sceUserServiceInitialize(NULL);
+  sceUserServiceGetInitialUser(&user);  // who opened the game: their saves, options and achievements
+  user_files(user);
   settings_defaults(&st);
   settings_read(DEFAULTS_PATH, &st);
-  settings_read(SET_PATH, &st);
+  settings_read(set_path, &st);
   ra_lb_popups(st.lb_popups);
-  ra_start(m, rom, rom_len, st.hardcore);  // async: signs in through RA Hub, notifies when connected
-  uint8_t *sav = slurp(SAV_PATH, &sav_len);
+  ra_start(m, rom, rom_len, st.hardcore, user, udir);  // async: signs in through RA Hub, notifies when connected
+  uint8_t *sav = slurp(sav_path, &sav_len);
   say("cartridge saves to: %s", gba_save_kind(m));
   if (sav) { gba_load_save(m, sav, sav_len); free(sav); say("save loaded: %zu bytes", sav_len); }
   int lang = -1, es = sceSystemServiceParamGetInt(1, &lang) == 0 && (lang == 3 || lang == 20);  // es-ES, es-419
   lang_es = es;
   unsigned hw = gba_hw(m);  // cartridge extras: solar sensor, gyro, rumble, tilt
-  cheats_load(CHEATS_PATH, CHEATS_ON_PATH);
+  cheats_load(CHEATS_PATH, cheats_on_path);
   size_t src_len;
   static char cheat_src[256];  // "Name (USA) (Code Breaker).cht"
   uint8_t *src = slurp(CHEATS_SRC_PATH, &src_len);
@@ -499,9 +526,6 @@ int main(void) {
   free(src);  // slurp's buffer has no terminator: copy up to the first line break
   menu_cheats_updatable(cheat_src[0] != 0);
 
-  int32_t user = 0xff;
-  sceUserServiceInitialize(NULL);
-  sceUserServiceGetInitialUser(&user);
   if (scePadInit() >= 0) pad = scePadOpen(user, 0, 0, NULL);
   if (pad >= 0) {
     scePadSetMotionSensorState(pad, 1);  // gyro / tilt carts read the controller's motion
@@ -555,7 +579,7 @@ int main(void) {
       struct settings before = st;
       int act = menu_input(b, &st);
       if (memcmp(&before, &st, sizeof st)) layout();
-      if (act != MENU_NONE) settings_save(SET_PATH, &st);
+      if (act != MENU_NONE) settings_save(set_path, &st);
       if (act == MENU_QUIT) break;
       if (act == MENU_RECENTER) recenter();
       if (act == MENU_UPDATE_CHEATS) update_cheats(cheat_src, es);
@@ -567,7 +591,7 @@ int main(void) {
         save_flush(m);
         gba_free(m);
         m = bios ? gba_new_bios(rom, rom_len, bios, bios_len) : gba_new(rom, rom_len);
-        if ((sav = slurp(SAV_PATH, &sav_len))) { gba_load_save(m, sav, sav_len); free(sav); }
+        if ((sav = slurp(sav_path, &sav_len))) { gba_load_save(m, sav, sav_len); free(sav); }
         ra_reset(m);
         fb = NULL;
         say("reset");

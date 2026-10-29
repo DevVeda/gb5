@@ -257,7 +257,7 @@ def build(rom_path, name=None, icon=None, hero=None, launch=None, music=None, eb
             print("aviso: el .sav pesa %d bytes y este juego guarda en %s (%s): se carga lo que quepa" % (
                 len(data), save_kind, " o ".join(str(n) for n in SAVE_SIZES.get(save_kind, ())) or "nada"), file=sys.stderr)
         (d / "game.sav").write_bytes(data)
-        print("partida: %s importada; al desplegar REEMPLAZA la partida guardada en la consola" % Path(save).name)
+        print("partida: %s importada; tras desplegar, el primer perfil de la PS5 que abra el juego se la queda (REEMPLAZA la suya)" % Path(save).name)
     # Cheats from libretro-database (just this game's file, cached in cheatdb/), all off until turned on in the game's menu.
     cht, warn = find_cheats(rom_name or Path(rom_path).name, rom)
     usable = [(n, c) for n, c, ok in (parse_cheats(cht) if cht else []) if ok]

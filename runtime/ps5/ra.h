@@ -3,10 +3,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Sign in with RA Hub's session and load the game by the ROM's MD5. Async: notifies when connected.
-// Does nothing (but log) when RA Hub isn't running.
+// Sign in with RA Hub's session for this PS5 user and load the game by the ROM's MD5. Async: notifies when
+// connected. Does nothing (but log) when RA Hub isn't running.
 // hardcore: start in RetroAchievements' hardcore mode (the caller blocks state loading, rewind, cheats).
-void ra_start(const void *machine, const uint8_t *rom, size_t len, int hardcore);
+// user_dir: the PS5 user's folder in the title, for the offline queue and cache.
+void ra_start(const void *machine, const uint8_t *rom, size_t len, int hardcore, int32_t ps5_user, const char *user_dir);
 // OPTIONS > LEADERBOARD ALERTS: show leaderboard started / failed / submitted / rank notifications.
 void ra_lb_popups(int on);
 // The player switched mode in OPTIONS. Turning it on: the caller resets the game (then ra_reset).

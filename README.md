@@ -115,7 +115,7 @@ changed and skips (and reports) the ones that are open.
 | `--a-button cross\|circle` | which button is the GBA's A: ✕ (`cross`) or ○ (`circle`) |
 | `--lcd`, `--gba-colors` (`--no-lcd`…) | LCD grid / GBA screen colours |
 | `--hardcore`, `--lb-popups` (`--no-hardcore`…) | RetroAchievements hardcore mode / leaderboard notifications (on by default) |
-| `--save` | import a `.sav` (mGBA, VBA, cartridge). **On deploy it replaces the save on the console** |
+| `--save` | import a `.sav` (mGBA, VBA, cartridge). **After deploying, the first PS5 profile to open the game gets it, replacing its own** |
 | `--bios` | your BIOS; `--bios none` to leave it out |
 | `--title-id` | force the ID |
 
@@ -223,10 +223,12 @@ Achievements depend on the ROM's MD5: use clean (No-Intro) dumps.
 | `sce_sys/` | `param.json`, `icon0.png`, `pic0.dds` / `pic1.dds` (4K BC7 backgrounds), `snd0.at9` |
 | `bios.bin`, `cheats.txt`, `cheats_src.txt` | optional (the BIOS; the cheats and the libretro file they come from) |
 | `defaults.txt` | the options it was built with |
-| `game.sav` | the cartridge save |
-| `state1-3.bin`, `settings.txt`, `cheats_on.txt` | states, options changed in the game and cheats turned on |
 | `log.txt` | what happened: detected save type, BIOS, RetroAchievements, states |
-| `ra_pending.txt`, `ra_*_<user>.json` | RetroAchievements: unlocks not yet confirmed; the game's data and your unlocks, for offline starts |
+| `user/<PS5 user>/` | **each PS5 profile's own:** `game.sav` (cartridge save), `state1-3.bin`, `settings.txt` (options changed in the game), `cheats_on.txt`, and RetroAchievements' `ra_pending.txt` (unlocks not yet confirmed) and `ra_*_<user>.json` (for offline starts) |
+
+Every PS5 profile has its own saves, options and RetroAchievements account (signed in to RA Hub from that
+profile). A `game.sav` in the title folder itself (an older GB5, or `--save`) goes to the first profile
+that opens the game.
 
 ### Layout
 
@@ -403,7 +405,7 @@ Opciones de `build`:
 | `--a-button cross\|circle` | qué botón es la A de la GBA: ✕ (`cross`) u ○ (`circle`) |
 | `--lcd`, `--gba-colors` (`--no-lcd`…) | filtro LCD / colores de la pantalla de GBA |
 | `--hardcore`, `--lb-popups` (`--no-hardcore`…) | modo hardcore de RetroAchievements / avisos de clasificaciones (activados por defecto) |
-| `--save` | importar un `.sav` (mGBA, VBA, cartucho). **Al desplegar reemplaza la partida de la consola** |
+| `--save` | importar un `.sav` (mGBA, VBA, cartucho). **Tras desplegar, se lo queda el primer perfil de la PS5 que abra el juego, reemplazando el suyo** |
 | `--bios` | tu BIOS; `--bios none` para no incluirla |
 | `--title-id` | forzar el ID |
 
@@ -511,10 +513,12 @@ servidor muestra "Unknown Emulator" y solo cuentan los logros casual (softcore).
 | `sce_sys/` | `param.json`, `icon0.png`, `pic0.dds` / `pic1.dds` (fondos BC7 4K), `snd0.at9` |
 | `bios.bin`, `cheats.txt`, `cheats_src.txt` | opcionales (la BIOS; los cheats y de qué archivo de libretro salen) |
 | `defaults.txt` | las opciones con que se construyó |
-| `game.sav` | la partida del cartucho |
-| `state1-3.bin`, `settings.txt`, `cheats_on.txt` | estados, opciones cambiadas en el juego y cheats activos |
 | `log.txt` | qué pasó: guardado detectado, BIOS, RetroAchievements, estados |
-| `ra_pending.txt`, `ra_*_<usuario>.json` | RetroAchievements: logros aún sin confirmar; los datos del juego y tus logros, para arrancar sin conexión |
+| `user/<usuario PS5>/` | **lo de cada perfil de la PS5:** `game.sav` (partida del cartucho), `state1-3.bin`, `settings.txt` (opciones cambiadas en el juego), `cheats_on.txt`, y de RetroAchievements `ra_pending.txt` (logros sin confirmar) y `ra_*_<usuario>.json` (para arrancar sin conexión) |
+
+Cada perfil de la PS5 tiene sus partidas, sus opciones y su cuenta de RetroAchievements (la que inicie
+sesión en RA Hub desde ese perfil). Un `game.sav` en la carpeta del título (de un GB5 anterior, o de
+`--save`) pasa al primer perfil que abra el juego.
 
 ### Estructura
 

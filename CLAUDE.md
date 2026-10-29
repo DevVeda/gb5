@@ -58,8 +58,10 @@ Not in git: `out/` (built titles), `ROMS/`, `bios/`, `cheatdb/` (cache), `settin
 - **Title folder** `out/<TITLEID>/`: `eboot.bin`, `sce_module/libc.prx`, `game.gba`, `defaults.txt`,
   optional `bios.bin`, `game.sav`, `cheats.txt`, `cheats_src.txt`, and `sce_sys/` (`param.json`,
   `icon0.png`, `pic0.dds`, `pic1.dds`, optional `snd0.at9`). On the console it lives in
-  `/data/homebrew/<ID>/` (`/app0` at runtime). The runtime writes `settings.txt`, `state1-3.bin`,
-  `cheats_on.txt` and `log.txt` there.
+  `/data/homebrew/<ID>/` (`/app0` at runtime). The runtime writes `log.txt` there, and per PS5 user
+  (`sceUserServiceGetInitialUser`, `%08x`) in `user/<id>/`: `game.sav`, `state1-3.bin`, `settings.txt`,
+  `cheats_on.txt`, `ra_pending.txt`, `ra_*_<rauser>.json`. Those files found in the title folder itself
+  (older GB5, or `--save` via deploy) move to the first user who opens the game (`user_files()` in main.c).
 - **Title ID:** `GBA` + region letter + 5 digits, from the game code. Codes with digits use 88000–99999.
   Homebrew without a code: `GBAX` + a number from the ROM.
 - **Deploy:** FTP (port 2121) uploads only changed files (sha256 record in `out/<ID>.deployed.json`).
@@ -89,7 +91,9 @@ Not in git: `out/` (built titles), `ROMS/`, `bios/`, `cheatdb/` (cache), `settin
 ## RetroAchievements
 
 - **Through RA Hub** (separate repo, DevVeda/rahub), a payload on the console:
-  - `GET /session`: user + token.
+  - `GET /session?u=<ps5 user %08x>`: that PS5 profile's user + token. RA Hub keeps one session per
+    profile (`/data/rahub/session.<id>`); its web follows the foreground user. The old single `session`
+    file goes to the first profile that asks.
   - `POST /dorequest`: forwards rcheevos calls over HTTPS, needs the `X-RAHub` header.
   - `/badge?u=`: badge PNG.
   - `/cheats?f=`: a libretro `.cht`.
