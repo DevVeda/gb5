@@ -42,6 +42,7 @@ pub mod irq {
     pub const VCOUNT: u16 = 1 << 2;
     pub const TIMER0: u16 = 1 << 3;
     pub const DMA0: u16 = 1 << 8;
+    pub const SERIAL: u16 = 1 << 7;
     pub const KEYPAD: u16 = 1 << 12;
 }
 
@@ -243,7 +244,10 @@ pub struct MemMap {
     pub fifo_pushes: [u64; 2],
     audio_cursor: u64,
     apu: crate::apu::Apu,
-    next_event: u64,
+    pub(crate) next_event: u64,
+    /// gba2ps5: link cable (multiplayer SIO), driven by `link::Link`. Not in save states.
+    #[serde(skip)]
+    pub sio: crate::link::Sio,
 }
 
 /// 65536 Hz on the 16.78 MHz master clock — the PWM grid most games
@@ -334,6 +338,7 @@ impl MemMap {
             audio_cursor: 0,
             apu: crate::apu::Apu::default(),
             next_event: HBLANK_FLAG_CYCLE,
+            sio: Default::default(),
         }
     }
 
@@ -1039,6 +1044,11 @@ impl MemMap {
                     self.fifo[1].clear();
                 }
             }
+            // gba2ps5: SIOCNT, a master's start bit begins a link transfer (link.rs).
+            0x0400_0128 | 0x0400_0129 => {
+                self.io[off as usize] = value;
+                self.sio_write();
+            }
             // KEYCNT: re-evaluate the keypad IRQ condition.
             0x0400_0132 | 0x0400_0133 => {
                 self.io[off as usize] = value;
@@ -1068,6 +1078,7 @@ impl MemMap {
             REG_IF => self.reg_if as u8,
             x if x == REG_IF + 1 => (self.reg_if >> 8) as u8,
             REG_IME => self.ime as u8,
+            0x0400_0128 if self.sio.player.is_some() && self.sio_multi() => self.sio_status(),
             // SOUNDCNT_X: bits 0-3 read back live PSG channel-active
             // flags; with the master enable off everything reads clear.
             0x0400_0084 => {

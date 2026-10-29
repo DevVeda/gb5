@@ -239,3 +239,40 @@ pub unsafe extern "C" fn gba_ra_read(m: *const Machine, addr: u32, out: *mut u8,
     k as u32
 }
 
+
+/// Link cable (multiplayer SIO): run 2-4 machines in lockstep, `ms[i]` is player i (0 = master).
+/// The group borrows the machines: keep using gba_audio / gba_save / gba_state_* etc. on each,
+/// and get the pictures from their framebuffers after gba_link_frame. NULL if n is not 2..=4.
+/// Save states taken while linked don't include the cable.
+#[no_mangle]
+pub unsafe extern "C" fn gba_link_new(ms: *const *mut Machine, n: usize) -> *mut gba_core::link::Link {
+    if !(2..=4).contains(&n) {
+        return core::ptr::null_mut();
+    }
+    let ms = core::slice::from_raw_parts(ms, n).iter().map(|&m| Box::from_raw(m)).collect();
+    Box::into_raw(Box::new(gba_core::link::Link::new(ms)))
+}
+
+/// One frame for every linked machine; `keys[i]` as in gba_frame.
+#[no_mangle]
+pub unsafe extern "C" fn gba_link_frame(l: *mut gba_core::link::Link, keys: *const u16) {
+    let l = &mut *l;
+    for (i, m) in l.machines.iter_mut().enumerate() {
+        m.bus.keys = !*keys.add(i) & 0x3ff;
+    }
+    l.frame();
+}
+
+/// Framebuffer of player i (240x160 BGR555), as gba_frame returns it.
+#[no_mangle]
+pub unsafe extern "C" fn gba_link_fb(l: *const gba_core::link::Link, i: usize) -> *const u16 {
+    (&(*l).machines)[i].bus.framebuffer.as_ptr()
+}
+
+/// Unlink: the machines keep running alone, free each with gba_free.
+#[no_mangle]
+pub unsafe extern "C" fn gba_link_free(l: *mut gba_core::link::Link) {
+    for m in Box::from_raw(l).into_machines() {
+        let _ = Box::into_raw(m);
+    }
+}

@@ -19,7 +19,7 @@ struct settings {
   int lb_popups;  // RetroAchievements leaderboard notifications (started, failed, submitted, rank); RA lets players turn them off
 };
 
-enum { MENU_NONE, MENU_CLOSED, MENU_RESET, MENU_QUIT, MENU_SAVE_STATE, MENU_LOAD_STATE, MENU_RECENTER, MENU_UPDATE_CHEATS, MENU_HARDCORE };
+enum { MENU_NONE, MENU_CLOSED, MENU_RESET, MENU_QUIT, MENU_SAVE_STATE, MENU_LOAD_STATE, MENU_RECENTER, MENU_UPDATE_CHEATS, MENU_HARDCORE, MENU_TWO_PLAYERS };
 // Cartridge extras, as gba_hw(): which sensor options OPTIONS shows.
 enum { HW_CLOCK = 1, HW_LIGHT = 2, HW_GYRO = 4, HW_RUMBLE = 8, HW_TILT = 16 };
 
@@ -29,6 +29,13 @@ void menu_open(int slots_used, unsigned hw);
 int menu_slot(void);
 // CHEATS shows "UPDATE FROM THE INTERNET" when the title knows its libretro cheat file.
 void menu_cheats_updatable(int yes);
+// 2 PLAYERS is on (the row then reads 1 PLAYER; LOAD STATE greys out).
+void menu_two_players(int on);
+void menu_close(void);
+// 2 PLAYERS' game list: names[0] is this game, the rest other GB5 titles on the console. With only this game
+// the list is skipped. menu_game() is the one picked for MENU_TWO_PLAYERS.
+void menu_games(const char *const *names, int n);
+int menu_game(void);
 // A line at the foot of the page now showing (the cheat update's result); "" clears it.
 void menu_status(const char *msg);
 int menu_is_open(void);

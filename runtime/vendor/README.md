@@ -20,3 +20,8 @@ Eeprom, Rtc and their enums; `#[serde(skip)]` on ROM, BIOS, the decode cache, au
 the HLE sound engines (mp2k/gax/rdrv, never armed by gba2ps5) and their taps.
 Generated C from gba-recomp must come from the same commit: it depends on
 the `repr(C)` layout of `Machine`/`Cpu`.
+Link cable: `gba-core/src/link.rs` adds SIO multiplayer mode (SIOMULTI0-3, SIOCNT start/busy,
+SI/SD/id, SIOMLT_SEND, baud-rate timing, serial IRQ; normal/UART modes stay plain storage) and
+`Link`, which runs 2-4 machines in lockstep (512-cycle slices, cut at transfer completion) and
+first aligns their video phase. `MemMap::sio` is `#[serde(skip)]`, so the state format is
+unchanged. Unit tests in link.rs; the Pokémon end-to-end host test stays local (gitignored).

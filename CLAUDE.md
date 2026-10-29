@@ -39,6 +39,7 @@ runtime/               the PS5 title (one eboot.bin for every game)
   ps5/card.c|h         achievement toast + sun meter
   ps5/cheats.c|h       CodeBreaker engine, in-console cheat update
   ps5/rewind.c|h       rewind ring (120 snapshots, 1 per second)
+  vendor/gba-core/src/link.rs  link cable (SIO multiplayer) + lockstep of 2-4 machines (gba_link_* in src/lib.rs)
   vendor/              gba-core + armv4t (patched, see vendor/README.md), rcheevos v12.5.0, stb
   overrides.tsv        save type / hardware per game (from mGBA, MPL-2.0)
   build.sh             cargo (host) + Docker image `ps5title` (link + fake-sign)
@@ -182,8 +183,10 @@ DEPLOY means `bash runtime/build.sh`, then `python3 gb5.py update-all --host <IP
   - Boktai, Yoshi Topsy-Turvy, WarioWare Twisted
 - **Not yet on console:** hardcore mode and RA Hub User-Agent forwarding, incl. the `gba-core/` segment
   (needs DEPLOY + new RA Hub); in-game indicators, leaderboards and the offline queue (tested on the Mac
-  against a fake RA Hub only).
+  against a fake RA Hub only). GB5 Menu → 2 PLAYERS (link cable, second user's pad, any installed GB5 title from
+  /data/homebrew with that user's save in that title, split screen):
+  the link itself is tested on the Mac only (Ruby + Emerald reach the Cable Club Colosseum together).
 - **Next big task:** the gba-recomp recompilation (ROM code → native x86 instead of gba-core's
   interpreter). Before that, maybe the "code refactor" TODO item.
-- **Deferred:** menu music (no free ATRAC9 encoder), e-Reader, link cable, in-game ✕/○ prompts, native
+- **Deferred:** menu music (no free ATRAC9 encoder), e-Reader, in-game ✕/○ prompts, native
   PS5 app.

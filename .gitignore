@@ -26,3 +26,6 @@ __pycache__/
 # Notes
 /TODO.md
 /CLAUDE.local.md
+
+# Link cable host test (needs commercial ROMs, local only)
+/runtime/vendor/gba-core/tests/link_pokemon.*

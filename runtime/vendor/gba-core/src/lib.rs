@@ -26,6 +26,7 @@ pub mod exec;
 pub mod gax;
 pub mod hle;
 pub mod hostclock;
+pub mod link;
 pub mod machine;
 pub mod mem;
 pub mod mp2k;

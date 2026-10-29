@@ -170,6 +170,9 @@ unique per game and version, so building again replaces the same icon. Codes wit
   only in the games that have them: rumble on/off, sunlight, gyro axis and sensitivity, tilt sensitivity
   and levelling
 - **Turbo** ×1 / ×2 / ×4
+- **2 Players**: turn on a second DualSense and pick another PS5 user; they choose this game or any other
+  GB5 title on the console (Ruby with Emerald, say) and play it from their own save in that title, side by
+  side, joined by the link cable (trades, battles). Back with **1 Player**
 - **Reset**, **Quit**
 
 #### Cartridge hardware
@@ -461,6 +464,9 @@ En **Opciones** se puede cambiar a A = ○, B = ✕ (las posiciones de Nintendo)
   y solo en los juegos que los tienen: vibración sí/no, sol, eje y sensibilidad del giroscopio,
   sensibilidad y centrado de la inclinación
 - **Turbo** ×1 / ×2 / ×4
+- **2 Jugadores**: enciende un segundo DualSense y elige otro usuario de la PS5; elige este juego u otro
+  título de GB5 de la consola (Ruby con Emerald, por ejemplo) y juega con su propia partida de ese título,
+  lado a lado, unidos por el cable link (intercambios, combates). Se vuelve con **1 Jugador**
 - **Reiniciar**, **Salir**
 
 #### Hardware del cartucho

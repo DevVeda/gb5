@@ -13,6 +13,7 @@
 #include <math.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <dirent.h>
 #include <unistd.h>
 
 #include "card.h"
@@ -36,6 +37,10 @@ uint8_t gba_hw_rumble(void *m);
 uint8_t *gba_state_save(const void *m, size_t *len);
 void gba_state_free(uint8_t *p, size_t len);
 int gba_state_load(void *m, const uint8_t *data, size_t len);
+void *gba_link_new(void *const *ms, size_t n);  // link cable: the machines run in lockstep, ms[0] is the master
+void gba_link_frame(void *l, const uint16_t *keys);
+const uint16_t *gba_link_fb(const void *l, size_t i);
+void gba_link_free(void *l);  // unlinks; the machines stay
 
 typedef struct { void *data, *metadata, *reserved0, *reserved1; } VideoBuffer;
 typedef struct { uint8_t reserved[80]; } VideoAttribute;
@@ -56,8 +61,10 @@ int sceSystemServiceLoadExec(const char *path, const char *const *argv);
 int sceSystemServiceParamGetInt(int param_id, int *value);
 int sceUserServiceInitialize(const void *params);
 int sceUserServiceGetInitialUser(int32_t *user_id);
+int sceUserServiceGetLoginUserIdList(int32_t ids[4]);  // -1 = empty
 int scePadInit(void);
 int scePadOpen(int32_t user_id, int32_t port_type, int32_t index, const void *params);
+int scePadClose(int32_t handle);
 int scePadRead(int32_t handle, void *samples, int32_t capacity);
 int scePadSetMotionSensorState(int32_t handle, int enable);
 int scePadSetVibrationMode(int32_t handle, int32_t mode);
@@ -114,6 +121,7 @@ static struct settings st;                       // the extra menu's choices
 static int lang_es;                               // console in Spanish
 static int card_x, sun_x;                         // achievement card's / sun meter's left edge
 static int sun_frames;                            // the sun meter shows while > 0
+static int fbw = 240;                             // picture width: 480 = two GBAs side by side (2 PLAYERS)
 
 static uint32_t rgba(double r, double g, double b) {
   uint32_t R = r > 255 ? 255 : (uint32_t)r, G = g > 255 ? 255 : (uint32_t)g, B = b > 255 ? 255 : (uint32_t)b;
@@ -123,8 +131,9 @@ static uint32_t rgba(double r, double g, double b) {
 // Picture size (x6 1440x960 / fill height 1620x1080 / all of 16:9) and colours, from st.
 static void layout(void) {
   int pw = st.size == SIZE_PIXEL ? 1440 : st.size == SIZE_FILL ? 1620 : W, ph = st.size == SIZE_PIXEL ? 960 : H;
+  if (fbw == 480) pw = W, ph = 640;  // 2 PLAYERS: two 960x640 pictures (x4)
   int ox = (W - pw) / 2, oy = (H - ph) / 2, rows = VBLOCKS_Y * 128;
-  for (int x = 0; x < W; x++) srcx[x] = x >= ox && x < ox + pw ? (x - ox) * 240 / pw : -1;
+  for (int x = 0; x < W; x++) srcx[x] = x >= ox && x < ox + pw ? (x - ox) * fbw / pw : -1;
   for (int y = 0; y < rows; y++) srcy[y] = y >= oy && y < oy + ph ? (y - oy) * 160 / ph : -1;
   for (int x = 0; x < W; x++) edgex[x] = srcx[x] >= 0 && (x + 1 == W || srcx[x + 1] != srcx[x]);
   for (int y = 0; y < rows; y++) edgey[y] = srcy[y] >= 0 && (y + 1 == rows || srcy[y + 1] != srcy[y]);
@@ -201,7 +210,7 @@ static void present(const uint16_t *fb) {
     uint32_t *out = vframes[target] + (size_t)b * 128 * 128;
     for (int i = 0; i < 128 * 128; i++) {  // write-combined memory: in order, never scattered
       int v = untile[i], y = by + (v >> 7), x = bx + (v & 127), sy = srcy[y], sx = srcx[x];
-      uint32_t px = sy >= 0 && sx >= 0 ? (st.lcd && (edgex[x] | edgey[y]) ? color_dim : color)[fb[sy * 240 + sx] & 0x7fff] : 0xff000000u;
+      uint32_t px = sy >= 0 && sx >= 0 ? (st.lcd && (edgex[x] | edgey[y]) ? color_dim : color)[fb[sy * fbw + sx] & 0x7fff] : 0xff000000u;
       if (sun && x >= sun_x && x < sun_x + SUN_W && y >= CARD_Y && y < CARD_Y + SUN_H) px = sun[(y - CARD_Y) * SUN_W + x - sun_x];
       if (card && x >= card_x && x < card_x + CARD_W && y >= CARD_Y && y < CARD_Y + CARD_H) px = blend(px, card[(y - CARD_Y) * CARD_W + x - card_x]);
       if (hud && x >= card_x && x < card_x + CARD_W && y >= hud_y && y < hud_y + hud_h) px = blend(px, hud[(y - hud_y) * CARD_W + x - card_x]);
@@ -247,11 +256,16 @@ static void audio_init(void) {
 }
 
 // Linear resample of what the frame produced; the fractional position carries over.
-static void audio_push(void *m) {
-  static int16_t in[4096 * 2];
+static void audio_push(void *m, void *m2) {
+  static int16_t in[4096 * 2], in2[4096 * 2];
   static int16_t last[2];
   static double pos;  // in input frames, relative to `last` at index -1
   size_t n = gba_audio(m, in, sizeof in / sizeof *in) / 2;
+  if (m2) {  // 2 PLAYERS: both games, half each. ponytail: a sample one has more than the other is dropped
+    size_t n2 = gba_audio(m2, in2, sizeof in2 / sizeof *in2) / 2;
+    if (n2 < n) n = n2;
+    for (size_t i = 0; i < n * 2; i++) in[i] = (int16_t)((in[i] + in2[i]) / 2);
+  }
   if (aport < 0 || !n) return;
   const double step = 65536.0 / 48000.0;
   unsigned w = atomic_load(&ring_w);
@@ -298,16 +312,16 @@ static int pad = -1;
 static struct pad_sample last_pad;
 
 // This frame's DualSense buttons (0 while the shell has the pad). L2/R2 count from half-way down.
-static uint32_t pad_read(void) {
+static uint32_t pad_read(int h, struct pad_sample *ls) {
   static struct pad_sample s[8];
-  int n = pad < 0 ? 0 : scePadRead(pad, s, 8);
-  if (n > 0) last_pad = s[n - 1];
-  if (last_pad.buttons & PAD_INTERCEPTED) return 0;
-  return last_pad.buttons | (last_pad.l2 > 127 ? PAD_L2 : 0) | (last_pad.r2 > 127 ? PAD_R2 : 0);
+  int n = h < 0 ? 0 : scePadRead(h, s, 8);
+  if (n > 0) *ls = s[n - 1];
+  if (ls->buttons & PAD_INTERCEPTED) return 0;
+  return ls->buttons | (ls->l2 > 127 ? PAD_L2 : 0) | (ls->r2 > 127 ? PAD_R2 : 0);
 }
 
 // GBA keys, 1 = pressed. Nintendo layout by position: A right (circle), B bottom (cross).
-static uint16_t gba_keys(uint32_t b) {
+static uint16_t gba_keys(uint32_t b, const struct pad_sample *ls) {
   uint16_t keys = 0;
   uint32_t a = st.swap_ab ? PAD_CROSS : PAD_CIRCLE, bb = st.swap_ab ? PAD_CIRCLE : PAD_CROSS;  // OPTIONS > A BUTTON
   if (b & (a | PAD_TRIANGLE)) keys |= GBA_A;
@@ -316,11 +330,11 @@ static uint16_t gba_keys(uint32_t b) {
   if (b & PAD_OPTIONS) keys |= GBA_START;
   if (b & PAD_L1) keys |= GBA_L;
   if (b & PAD_R1) keys |= GBA_R;
-  if (!b && last_pad.buttons & PAD_INTERCEPTED) return 0;
-  if (b & PAD_RIGHT || last_pad.left_x > 192) keys |= GBA_RIGHT;
-  if (b & PAD_LEFT || last_pad.left_x < 64) keys |= GBA_LEFT;
-  if (b & PAD_UP || last_pad.left_y < 64) keys |= GBA_UP;
-  if (b & PAD_DOWN || last_pad.left_y > 192) keys |= GBA_DOWN;
+  if (!b && ls->buttons & PAD_INTERCEPTED) return 0;
+  if (b & PAD_RIGHT || ls->left_x > 192) keys |= GBA_RIGHT;
+  if (b & PAD_LEFT || ls->left_x < 64) keys |= GBA_LEFT;
+  if (b & PAD_UP || ls->left_y < 64) keys |= GBA_UP;
+  if (b & PAD_DOWN || ls->left_y > 192) keys |= GBA_DOWN;
   return keys;
 }
 
@@ -339,14 +353,13 @@ static uint8_t *slurp(const char *path, size_t *len) {
 }
 
 // Write next to the old save, then rename: a crash mid-write never loses the last good one.
-static void save_flush(void *m) {
-  static uint32_t last_hash;
+static void save_flush(void *m, const char *sav_path, uint32_t *last_hash) {
   size_t len;
   const uint8_t *s = gba_save(m, &len);
   if (!len) return;
   uint32_t h = 2166136261u;
   for (size_t i = 0; i < len; i++) h = (h ^ s[i]) * 16777619u;
-  if (h == last_hash) return;
+  if (h == *last_hash) return;
   char tmp[88];
   snprintf(tmp, sizeof tmp, "%s.tmp", sav_path);
   FILE *f = fopen(tmp, "wb");
@@ -355,7 +368,7 @@ static void save_flush(void *m) {
   ok &= fclose(f) == 0;
   if (ok && rename(tmp, sav_path) == 0) {
     chmod(sav_path, 0666);  // FTP (another process) must be able to read it
-    last_hash = h;
+    *last_hash = h;
   } else {
     say("save: write failed");
   }
@@ -492,6 +505,132 @@ static void user_files(int32_t user) {
   snprintf(cheats_on_path, sizeof cheats_on_path, "%s/cheats_on.txt", udir);
 }
 
+// ---------------- 2 PLAYERS: a second GBA on the link cable, another PS5 user's controller and save ----------------
+static void *m2, *duo_link;
+static int pad2 = -1;
+static struct pad_sample last_pad2;
+static char sav2_path[112];
+static uint32_t hash1, hash2;  // save_flush: what each game.sav holds
+static uint16_t duo[480 * 160];  // both pictures side by side
+
+// Player 2's choices: this game, then the other GB5 titles installed (/data/homebrew/GBA*/game.gba), by name.
+#define HOMEBREW "/data/homebrew"
+#define MAX_GAMES 128
+static struct game { char id[16], name[40]; } games[MAX_GAMES];
+static const char *game_names[MAX_GAMES];
+static int game_count;
+
+// "key": "value" in a param.json, copied (UTF-8 made ASCII for the menu font); "" when missing.
+static void json_str(const char *path, const char *key, char *out, size_t n) {
+  size_t len;
+  char *j = (char *)slurp(path, &len), raw[160], *p;
+  out[0] = 0;
+  if (!j) return;
+  j = realloc(j, len + 1);
+  j[len] = 0;
+  if ((p = strstr(j, key)) && (p = strchr(p + strlen(key), ':')) && (p = strchr(p, '"'))) {
+    size_t k = 0;
+    for (p++; *p && *p != '"' && k + 1 < sizeof raw; p++) raw[k++] = *p;
+    raw[k] = 0;
+    text_ascii(out, n, raw);
+  }
+  free(j);
+}
+
+static int by_name(const void *a, const void *b) { return strcmp(((const struct game *)a)->name, ((const struct game *)b)->name); }
+
+static void find_games(int es) {
+  char own[16], path[96];
+  struct stat sb;
+  json_str("/app0/sce_sys/param.json", "\"titleId\"", own, sizeof own);
+  snprintf(games[0].name, sizeof games[0].name, "%s", es ? "ESTE JUEGO" : "THIS GAME");
+  game_count = 1;
+  DIR *d = opendir(HOMEBREW);
+  struct dirent *e;
+  while (d && (e = readdir(d)) && game_count < MAX_GAMES) {
+    if (strncmp(e->d_name, "GBA", 3) || strlen(e->d_name) >= sizeof games[0].id || !strcmp(e->d_name, own)) continue;
+    snprintf(path, sizeof path, HOMEBREW "/%s/game.gba", e->d_name);
+    if (stat(path, &sb)) continue;
+    struct game *g = &games[game_count++];
+    snprintf(g->id, sizeof g->id, "%s", e->d_name);
+    snprintf(path, sizeof path, HOMEBREW "/%s/sce_sys/param.json", e->d_name);
+    json_str(path, "\"titleName\"", g->name, sizeof g->name);
+    if (!g->name[0]) snprintf(g->name, sizeof g->name, "%s", g->id);
+  }
+  if (d) closedir(d);
+  else say("2 players: cannot list " HOMEBREW ": only this game");
+  qsort(games + 1, (size_t)game_count - 1, sizeof *games, by_name);
+  for (int i = 0; i < game_count; i++) game_names[i] = games[i].name;
+  menu_games(game_names, game_count);
+  say("2 players: %d games to choose from", game_count);
+}
+
+// Player 2 is the other signed-in PS5 user (turning on a second DualSense asks the console who uses it).
+// They play games[game] (0 = this one) from their own save in that title's folder, written back there.
+// NULL when started, else why not (for the menu).
+static const char *two_players_on(void *m, int32_t user, int game, const uint8_t *rom, size_t rom_len, const uint8_t *bios, size_t bios_len, int es) {
+  int32_t ids[4] = {-1, -1, -1, -1}, u2 = -1;
+  sceUserServiceGetLoginUserIdList(ids);
+  for (int i = 0; i < 4 && u2 == -1; i++)
+    if (ids[i] != -1 && ids[i] != user) u2 = ids[i];
+  if (u2 == -1) return es ? "ENCIENDE OTRO MANDO\nY ELIGE OTRO\nUSUARIO" : "TURN ON ANOTHER\nCONTROLLER AND PICK\nANOTHER USER";
+  if ((pad2 = scePadOpen(u2, 0, 0, NULL)) < 0) {
+    say("2 players: scePadOpen 0x%x", pad2);
+    return es ? "NO SE PUDO ABRIR\nEL OTRO MANDO" : "COULD NOT OPEN\nTHE OTHER CONTROLLER";
+  }
+  char title[48], dir[72], path[96];
+  size_t len, rom2_len = rom_len;
+  const uint8_t *rom2 = rom;
+  uint8_t *other = NULL;
+  snprintf(title, sizeof title, game ? HOMEBREW "/%s" : "/app0", games[game].id);
+  if (game) {
+    snprintf(path, sizeof path, "%s/game.gba", title);
+    if (!(other = slurp(path, &rom2_len))) {
+      scePadClose(pad2);
+      pad2 = -1;
+      say("2 players: cannot read %s", path);
+      return es ? "NO SE PUDO LEER\nESE JUEGO" : "COULD NOT READ\nTHAT GAME";
+    }
+    rom2 = other;
+  }
+  snprintf(dir, sizeof dir, "%s/user", title);  // as user_files() lays it out
+  mkdir(dir, 0777);
+  chmod(dir, 0777);
+  snprintf(dir, sizeof dir, "%s/user/%08x", title, (uint32_t)u2);
+  mkdir(dir, 0777);
+  chmod(dir, 0777);
+  // ponytail: a title not opened since per-user saves still has its game.sav at the top: player 2 starts
+  // without it (whoever opens that title first gets it). Open it once alone to sort that out.
+  snprintf(sav2_path, sizeof sav2_path, "%s/game.sav", dir);
+  m2 = bios ? gba_new_bios(rom2, rom2_len, bios, bios_len) : gba_new(rom2, rom2_len);
+  free(other);  // gba_new copied it
+  uint8_t *sav = slurp(sav2_path, &len);
+  if (sav) { gba_load_save(m2, sav, len); free(sav); }
+  void *ms[2] = {m, m2};
+  duo_link = gba_link_new(ms, 2);
+  hash2 = 0;
+  fbw = 480;
+  layout();
+  menu_two_players(1);
+  say("2 players: user %08x, %s, %s", (uint32_t)u2, game ? games[game].id : "this game", sav ? "save loaded" : "new save");
+  return NULL;
+}
+
+static void two_players_off(void) {
+  if (!duo_link) return;
+  save_flush(m2, sav2_path, &hash2);
+  gba_link_free(duo_link);
+  duo_link = NULL;
+  gba_free(m2);
+  m2 = NULL;
+  scePadClose(pad2);
+  pad2 = -1;
+  fbw = 240;
+  layout();
+  menu_two_players(0);
+  say("2 players: off");
+}
+
 int main(void) {
   if ((logfile = fopen(LOG_PATH, "w"))) chmod(LOG_PATH, 0666);
   sceSystemServiceHideSplashScreen();
@@ -525,6 +664,7 @@ int main(void) {
   for (size_t k = 0; src && k < src_len && k + 1 < sizeof cheat_src && src[k] != '\n' && src[k] != '\r'; k++) cheat_src[k] = (char)src[k];
   free(src);  // slurp's buffer has no terminator: copy up to the first line break
   menu_cheats_updatable(cheat_src[0] != 0);
+  find_games(es);
 
   if (scePadInit() >= 0) pad = scePadOpen(user, 0, 0, NULL);
   if (pad >= 0) {
@@ -542,10 +682,10 @@ int main(void) {
   uint32_t prev_b = 0;
   int rw_mode = 0, rw_sel = 0, rw_tick = 0;
   for (unsigned frame = 1;;) {
-    uint32_t b = pad_read(), press = b & ~prev_b;
+    uint32_t b = pad_read(pad, &last_pad), press = b & ~prev_b, b2 = pad_read(pad2, &last_pad2);
     prev_b = b;
     // ---- rewind: L3 stops on the timeline; right stick / d-pad scrub; GBA A goes back there, GBA B or L3 cancels
-    if (!rw_mode && fb && !menu_is_open() && !st.hardcore && press & PAD_L3) {  // no rewind in hardcore
+    if (!rw_mode && fb && !menu_is_open() && !st.hardcore && !duo_link && press & PAD_L3) {  // no rewind in hardcore or 2 players
       rewind_mark(m, fb);  // "now" is the newest point
       rw_mode = 1;
       rumble(0);
@@ -580,15 +720,21 @@ int main(void) {
       int act = menu_input(b, &st);
       if (memcmp(&before, &st, sizeof st)) layout();
       if (act != MENU_NONE) settings_save(set_path, &st);
-      if (act == MENU_QUIT) break;
+      if (act == MENU_QUIT) { two_players_off(); break; }
       if (act == MENU_RECENTER) recenter();
       if (act == MENU_UPDATE_CHEATS) update_cheats(cheat_src, es);
       if (act == MENU_SAVE_STATE) state_save(m, menu_slot());
       if (act == MENU_LOAD_STATE && !st.hardcore && state_load(m, menu_slot())) fb = NULL;  // the framebuffer moved: next gba_frame gives it
+      if (act == MENU_TWO_PLAYERS) {  // on or off: either way the picture changes, so back to the game
+        const char *why = duo_link ? (two_players_off(), NULL) : two_players_on(m, user, menu_game(), rom, rom_len, bios, bios_len, es);
+        if (why) menu_status(why);
+        else { menu_close(); fb = NULL; continue; }
+      }
       if (act == MENU_HARDCORE) ra_set_hardcore(st.hardcore);
       ra_lb_popups(st.lb_popups);
       if (act == MENU_RESET || (act == MENU_HARDCORE && st.hardcore)) {  // hardcore on: from the start, as RA requires
-        save_flush(m);
+        two_players_off();  // the link holds the old machine
+        save_flush(m, sav_path, &hash1);
         gba_free(m);
         m = bios ? gba_new_bios(rom, rom_len, bios, bios_len) : gba_new(rom, rom_len);
         if ((sav = slurp(sav_path, &sav_len))) { gba_load_save(m, sav, sav_len); free(sav); }
@@ -597,10 +743,12 @@ int main(void) {
         say("reset");
         continue;
       }
-      if (menu_is_open()) {
-        memcpy(paused, fb, sizeof paused);
+      if (menu_is_open()) {  // over player 1's picture
+        for (int y = 0; y < 160; y++) memcpy(paused + y * 240, fb + y * fbw, 240 * 2);
         menu_draw(paused, &st, es);
-        present(paused);
+        if (fbw == 480)
+          for (int y = 0; y < 160; y++) memcpy(duo + y * 480, paused + y * 240, 240 * 2);
+        present(fbw == 480 ? duo : paused);
         continue;
       }
     }
@@ -608,15 +756,31 @@ int main(void) {
     // TURBO runs several GBA frames per shown frame; only the last one's sound is played, so the
     // audio clock above keeps the shown frames at normal speed and the game runs st.turbo times faster.
     for (int t = 0; t < st.turbo; t++, frame++) {
-      if (!st.hardcore) cheats_apply(m, gba_keys(b));  // no cheats in hardcore
-      if (hw) sensors(m, hw);
-      fb = gba_frame(m, gba_keys(b));
-      ra_frame();
-      rewind_record(m, fb);
-      if (t + 1 < st.turbo) gba_audio(m, scratch, sizeof scratch / sizeof *scratch);
-      if (frame % 30 == 0) save_flush(m);  // ~0.5 s after the game saves; writes only when it changed
+      if (!st.hardcore) cheats_apply(m, gba_keys(b, &last_pad));  // no cheats in hardcore
+      if (hw) sensors(m, hw);  // ponytail: cartridge sensors and rumble are player 1's only
+      if (duo_link) {
+        const uint16_t keys[2] = {gba_keys(b, &last_pad), gba_keys(b2, &last_pad2)};
+        gba_link_frame(duo_link, keys);
+        for (int y = 0; y < 160; y++) {
+          memcpy(duo + y * 480, gba_link_fb(duo_link, 0) + y * 240, 240 * 2);
+          memcpy(duo + y * 480 + 240, gba_link_fb(duo_link, 1) + y * 240, 240 * 2);
+        }
+        fb = duo;
+      } else {
+        fb = gba_frame(m, gba_keys(b, &last_pad));
+        rewind_record(m, fb);
+      }
+      ra_frame();  // RetroAchievements: player 1
+      if (t + 1 < st.turbo) {
+        gba_audio(m, scratch, sizeof scratch / sizeof *scratch);
+        if (m2) gba_audio(m2, scratch, sizeof scratch / sizeof *scratch);
+      }
+      if (frame % 30 == 0) {  // ~0.5 s after the game saves; writes only when it changed
+        save_flush(m, sav_path, &hash1);
+        if (m2) save_flush(m2, sav2_path, &hash2);
+      }
     }
-    audio_push(m);
+    audio_push(m, m2);
     if (hw & HW_RUMBLE) {  // the share of these frames the cart's motor was on; OPTIONS > RUMBLE can mute it
       int duty = gba_hw_rumble(m);
       rumble(st.rumble ? duty : 0);
@@ -624,6 +788,6 @@ int main(void) {
     present(fb);
   }
   rumble(0);
-  save_flush(m);  // QUIT from the menu: the CRT then closes the title (catchReturnFromMain)
+  save_flush(m, sav_path, &hash1);  // QUIT from the menu: the CRT then closes the title (catchReturnFromMain)
   return 0;
 }

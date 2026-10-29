@@ -107,18 +107,25 @@ static void cursor(uint16_t *fb, int x, int y) {  // ▶, 4 wide, 7 tall
 }
 
 // ---------------- state ----------------
-enum { PAGE_MAIN, PAGE_DISPLAY, PAGE_CHEATS, PAGE_ACH };
+enum { PAGE_MAIN, PAGE_DISPLAY, PAGE_CHEATS, PAGE_ACH, PAGE_GAMES };
 #define ACH_ROWS 6  // achievements visible at once
 #define CHEAT_ROWS 9  // visible at once; the list scrolls
-enum { M_RESUME, M_SAVE, M_LOAD, M_ACH, M_CHEATS, M_DISPLAY, M_TURBO, M_RESET, M_QUIT, M_COUNT };
+enum { M_RESUME, M_SAVE, M_LOAD, M_ACH, M_CHEATS, M_DISPLAY, M_TURBO, M_PLAYERS, M_RESET, M_QUIT, M_COUNT };
 enum { D_SIZE, D_LCD, D_COLOR, D_SWAP, D_HARDCORE, D_LB_POPUPS, D_RUMBLE, D_SUN, D_GYRO, D_GYRO_SENS, D_TILT_SENS, D_CENTER, D_BACK, D_COUNT };
 
 static int open_, page, sel, prev_buttons, held_frames, slot = 1, slots, ach_count = -1;
 static int main_sel;  // where the cursor was on the main page: the menu reopens there
 static int cheat_upd;  // CHEATS has its UPDATE row
+static int two_players;
 static char status[48];
 
 void menu_cheats_updatable(int yes) { cheat_upd = !!yes; }
+void menu_two_players(int on) { two_players = !!on; }
+void menu_close(void) { open_ = 0; }
+static const char *const *game_names;
+static int game_count, game_sel;
+void menu_games(const char *const *names, int n) { game_names = names, game_count = n; }
+int menu_game(void) { return game_sel; }
 void menu_status(const char *msg) { snprintf(status, sizeof status, "%s", msg); }
 static unsigned cart_hw;
 
@@ -143,6 +150,7 @@ void menu_open(int slots_used, unsigned hw) {
   sel = main_sel;
   prev_buttons = ~0u;  // ignore the buttons that opened it until they're let go
   held_frames = 0;
+  status[0] = 0;
 }
 
 int menu_is_open(void) { return open_; }
@@ -175,7 +183,7 @@ static int menu_input_(uint32_t b, struct settings *s) {
 
   int rows[D_COUNT], nrows = options(rows);
   int count = page == PAGE_MAIN ? M_COUNT : page == PAGE_DISPLAY ? nrows : page == PAGE_ACH ? (ach_count > 0 ? ach_count : 0) + 1
-                                                                 : cheat_upd + cheats_count() + 1;  // [UPDATE] list BACK
+              : page == PAGE_GAMES ? game_count + 1 : cheat_upd + cheats_count() + 1;  // [UPDATE] list BACK
   if (press & PAD_UP) sel = (sel + count - 1) % count;
   if (press & PAD_DOWN) sel = (sel + 1) % count;
   int dir = press & PAD_LEFT ? -1 : press & (PAD_RIGHT | PAD_CROSS) ? 1 : 0;
@@ -190,10 +198,15 @@ static int menu_input_(uint32_t b, struct settings *s) {
       else if (sel == M_CHEATS && !s->hardcore) { page = PAGE_CHEATS; sel = 0; status[0] = 0; }
       else if (sel == M_ACH) { page = PAGE_ACH; sel = 0; ach_count = ra_list_refresh(); }
       if (sel == M_SAVE) { open_ = 0; return MENU_SAVE_STATE; }
-      if (sel == M_LOAD && slots & 1 << slot && !s->hardcore) { open_ = 0; return MENU_LOAD_STATE; }  // empty slot: nothing to load
+      if (sel == M_PLAYERS && !two_players && game_count > 1) { page = PAGE_GAMES; sel = 0; status[0] = 0; return MENU_NONE; }
+      if (sel == M_PLAYERS) { game_sel = 0; return MENU_TWO_PLAYERS; }  // stays open: main may put a status line
+      if (sel == M_LOAD && slots & 1 << slot && !s->hardcore && !two_players) { open_ = 0; return MENU_LOAD_STATE; }  // empty slot: nothing to load
       if (sel == M_RESET) { open_ = 0; return MENU_RESET; }
       if (sel == M_QUIT) { open_ = 0; return MENU_QUIT; }
     }
+  } else if (page == PAGE_GAMES) {
+    if (press & PAD_CIRCLE || (press & PAD_CROSS && sel == count - 1)) { page = PAGE_MAIN; sel = M_PLAYERS; return MENU_NONE; }
+    if (press & PAD_CROSS) { game_sel = sel; page = PAGE_MAIN; sel = M_PLAYERS; return MENU_TWO_PLAYERS; }
   } else if (page == PAGE_ACH) {
     if (press & PAD_CIRCLE || (press & PAD_CROSS && sel == count - 1)) { page = PAGE_MAIN; sel = M_ACH; return MENU_NONE; }
   } else if (page == PAGE_CHEATS) {
@@ -227,19 +240,24 @@ void menu_draw(uint16_t *fb, const struct settings *s, int es) {
   char line[48];
   if (page == PAGE_MAIN) {
     // the start menu's place: a column on the right
-    static const char *en[] = {"RESUME", "SAVE STATE", "LOAD STATE", "ACHIEVEMENTS", "CHEATS", "OPTIONS", "TURBO", "RESET", "QUIT"},
-                      *sp[] = {"CONTINUAR", "GUARDAR ESTADO", "CARGAR ESTADO", "LOGROS", "CHEATS", "OPCIONES", "TURBO", "REINICIAR", "SALIR"};
+    static const char *en[] = {"RESUME", "SAVE STATE", "LOAD STATE", "ACHIEVEMENTS", "CHEATS", "OPTIONS", "TURBO", "2 PLAYERS", "RESET", "QUIT"},
+                      *sp[] = {"CONTINUAR", "GUARDAR ESTADO", "CARGAR ESTADO", "LOGROS", "CHEATS", "OPCIONES", "TURBO", "2 JUGADORES", "REINICIAR", "SALIR"};
     const char **t = es ? sp : en;
-    int x = 114, y = 4, w = 122, h = 10 + M_COUNT * 15;
+    int x = 114, y = 4, w = 122, h = 10 + M_COUNT * 14;
     box(fb, x, y, w, h);
+    if (status[0]) {  // why 2 PLAYERS didn't start: a box on the left
+      box(fb, 4, 112, 106, 44);
+      glyphs(fb, 12, 120, status, EDGE);
+    }
     for (int i = 0; i < M_COUNT; i++) {
       if (i == M_TURBO) snprintf(line, sizeof line, "%s x%d", t[i], s->turbo);
+      else if (i == M_PLAYERS && two_players) snprintf(line, sizeof line, "%s", es ? "1 JUGADOR" : "1 PLAYER");
       else if (i == M_SAVE || i == M_LOAD) snprintf(line, sizeof line, "%s %d", t[i], slot);
       else snprintf(line, sizeof line, "%s", t[i]);
-      if ((i == M_LOAD && (!(slots & 1 << slot) || s->hardcore)) || (i == M_CHEATS && s->hardcore))
-        glyphs(fb, x + 16, y + 8 + i * 15, line, SHADOW);  // empty slot, or not in hardcore: greyed out
-      else label(fb, x + 16, y + 8 + i * 15, line);
-      if (i == sel) cursor(fb, x + 7, y + 8 + i * 15);
+      if ((i == M_LOAD && (!(slots & 1 << slot) || s->hardcore || two_players)) || (i == M_CHEATS && s->hardcore))
+        glyphs(fb, x + 16, y + 8 + i * 14, line, SHADOW);  // empty slot, or not in hardcore / 2 players: greyed out
+      else label(fb, x + 16, y + 8 + i * 14, line);
+      if (i == sel) cursor(fb, x + 7, y + 8 + i * 14);
     }
   } else if (page == PAGE_ACH) {
     // header + list (top box), the selected one's description (bottom box)
@@ -297,6 +315,19 @@ void menu_draw(uint16_t *fb, const struct settings *s, int es) {
       }
       if (prog[0]) label(fb, x + w - 10 - stb_easy_font_width(prog), by + 6, prog);
     }
+  } else if (page == PAGE_GAMES) {  // player 2's game: a scrolling list, BACK last
+    int total = game_count + 1, rows = CHEAT_ROWS - 1, top = sel >= rows ? sel - rows + 1 : 0;
+    int x = 4, y = 4, w = 232, h = 10 + CHEAT_ROWS * 15;
+    box(fb, x, y, w, h);
+    label(fb, x + 8, y + 6, es ? "JUEGO DEL JUGADOR 2" : "PLAYER 2'S GAME");
+    for (int r = 0; r < rows && top + r < total; r++) {
+      int i = top + r, ry = y + 23 + r * 15;
+      snprintf(line, sizeof line, "%.34s", i == total - 1 ? (es ? "VOLVER" : "BACK") : game_names[i]);
+      label(fb, x + 16, ry, line);
+      if (i == sel) cursor(fb, x + 7, ry);
+    }
+    if (top > 0) label(fb, x + w - 14, y + 18, "^");
+    if (top + rows < total) label(fb, x + w - 14, y + h - 12, "v");
   } else if (page == PAGE_CHEATS) {
     // items: [UPDATE FROM THE INTERNET] cheats... BACK; the status line takes the last row when set
     int n = cheats_count(), total = cheat_upd + n + 1, lead = n ? 0 : 1, rows = CHEAT_ROWS - lead - (status[0] != 0);
