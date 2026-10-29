@@ -20,6 +20,20 @@ script: a CLI and a local web UI. Machine-specific facts (console IP, local path
   (`a_button=cross|circle`, `PAD_CROSS`).
 - **Bilingual:** every web UI string has `es` and `en` entries in `T` (web/index.html). The README has an
   English and a Spanish half (`#english`, `#espanol`); change both. The in-game menu has `en`/`sp` arrays.
+- **Never break RetroAchievements hardcore compliance.** No change may put GB5's approval at risk
+  (https://docs.retroachievements.org/general/hardcore-compliance-requirements.html). Check every feature
+  against it before building it. In hardcore, these stay blocked:
+  - loading states and rewind
+  - slowdown, frame advance
+  - cheats, memory editing, input playback
+  These rules also hold:
+  - turning hardcore on resets the game
+  - the User-Agent stays unique and honest
+  - achievement list, progress and challenge indicators stay visible
+  - leaderboards keep running and submitting (only their on-screen alerts and trackers may be hidden)
+  - unlocks made offline are queued
+  If a request conflicts with this, say so and propose a compliant version (for example, allow it only in
+  casual).
 - **Style:** match the surrounding code. Short diffs, stdlib first, no new dependencies.
   `gb5.py` is standard library only. Mark deliberate shortcuts with `ponytail:` comments.
 
@@ -183,9 +197,10 @@ DEPLOY means `bash runtime/build.sh`, then `python3 gb5.py update-all --host <IP
   - Boktai, Yoshi Topsy-Turvy, WarioWare Twisted
 - **Not yet on console:** hardcore mode and RA Hub User-Agent forwarding, incl. the `gba-core/` segment
   (needs DEPLOY + new RA Hub); in-game indicators, leaderboards and the offline queue (tested on the Mac
-  against a fake RA Hub only). GB5 Menu → 2 PLAYERS (link cable, second user's pad, any installed GB5 title from
-  /data/homebrew with that user's save in that title, split screen):
-  the link itself is tested on the Mac only (Ruby + Emerald reach the Cable Club Colosseum together).
+  against a fake RA Hub only). GB5 Menu → PLAYERS < 1-4 > (link cable; each extra player is another signed-in
+  user's pad, any installed GB5 title from /data/homebrew with that user's save in that title; 2 side by side
+  ×4, 3-4 in a 2×2 grid ×3; sound from player 1; log.txt gets "players N ... ms per frame" once a second):
+  2 players verified on console (Ruby ↔ Emerald trade); 3-4 not yet (all machines run on one thread).
 - **Next big task:** the gba-recomp recompilation (ROM code → native x86 instead of gba-core's
   interpreter). Before that, maybe the "code refactor" TODO item.
 - **Deferred:** menu music (no free ATRAC9 encoder), e-Reader, in-game ✕/○ prompts, native

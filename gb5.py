@@ -216,7 +216,7 @@ OPTION_KEYS = ("size", "a_button", "lcd", "gba_colors", "hardcore", "lb_popups")
 
 
 def build(rom_path, name=None, icon=None, hero=None, launch=None, music=None, eboot=None, out="out", tid=None, bios=None, rom_name=None, save=None,
-          size="16:9", a_button="cross", lcd=False, gba_colors=False, hardcore=False, lb_popups=True):
+          size="16:9", a_button="cross", lcd=False, gba_colors=False, hardcore=False, lb_popups=False):
     rom = read_rom(rom_path)
     if len(rom) < 0xC0 or len(rom) > 32 * 1024 * 1024 or rom[0xB2] != 0x96:
         raise ValueError("not a GBA ROM (bad size or header byte 0xB2 != 0x96)")
@@ -485,7 +485,7 @@ def smp_once(ftp, host, lines, elfldr_port):
 
 
 SETTINGS = ROOT / "settings.json"  # the web UI's Settings tab; never in git (it holds the API key)
-SETTINGS_DEFAULT = {"sgdb_key": "", "size": "16:9", "a_button": "cross", "lcd": False, "gba_colors": False, "hardcore": False, "lb_popups": True}
+SETTINGS_DEFAULT = {"sgdb_key": "", "size": "16:9", "a_button": "cross", "lcd": False, "gba_colors": False, "hardcore": False, "lb_popups": False}
 
 
 def load_settings():

@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <time.h>
 #include <sys/stat.h>
 #include <dirent.h>
 #include <unistd.h>
@@ -121,7 +122,7 @@ static struct settings st;                       // the extra menu's choices
 static int lang_es;                               // console in Spanish
 static int card_x, sun_x;                         // achievement card's / sun meter's left edge
 static int sun_frames;                            // the sun meter shows while > 0
-static int fbw = 240;                             // picture width: 480 = two GBAs side by side (2 PLAYERS)
+static int fbw = 240, fbh = 160;                  // picture size: 480x160 = 2 players side by side, 480x320 = 3-4 in a 2x2 grid
 
 static uint32_t rgba(double r, double g, double b) {
   uint32_t R = r > 255 ? 255 : (uint32_t)r, G = g > 255 ? 255 : (uint32_t)g, B = b > 255 ? 255 : (uint32_t)b;
@@ -131,10 +132,11 @@ static uint32_t rgba(double r, double g, double b) {
 // Picture size (x6 1440x960 / fill height 1620x1080 / all of 16:9) and colours, from st.
 static void layout(void) {
   int pw = st.size == SIZE_PIXEL ? 1440 : st.size == SIZE_FILL ? 1620 : W, ph = st.size == SIZE_PIXEL ? 960 : H;
-  if (fbw == 480) pw = W, ph = 640;  // 2 PLAYERS: two 960x640 pictures (x4)
+  if (fbh == 320) pw = 1440, ph = 960;  // 3-4 PLAYERS: four 720x480 pictures (x3)
+  else if (fbw == 480) pw = W, ph = 640;  // 2 PLAYERS: two 960x640 pictures (x4)
   int ox = (W - pw) / 2, oy = (H - ph) / 2, rows = VBLOCKS_Y * 128;
   for (int x = 0; x < W; x++) srcx[x] = x >= ox && x < ox + pw ? (x - ox) * fbw / pw : -1;
-  for (int y = 0; y < rows; y++) srcy[y] = y >= oy && y < oy + ph ? (y - oy) * 160 / ph : -1;
+  for (int y = 0; y < rows; y++) srcy[y] = y >= oy && y < oy + ph ? (y - oy) * fbh / ph : -1;
   for (int x = 0; x < W; x++) edgex[x] = srcx[x] >= 0 && (x + 1 == W || srcx[x + 1] != srcx[x]);
   for (int y = 0; y < rows; y++) edgey[y] = srcy[y] >= 0 && (y + 1 == rows || srcy[y + 1] != srcy[y]);
   card_x = W - CARD_W - 48;  // the toast: top right over the picture, where the PS5 puts its own
@@ -256,16 +258,11 @@ static void audio_init(void) {
 }
 
 // Linear resample of what the frame produced; the fractional position carries over.
-static void audio_push(void *m, void *m2) {
-  static int16_t in[4096 * 2], in2[4096 * 2];
+static void audio_push(void *m) {
+  static int16_t in[4096 * 2];
   static int16_t last[2];
   static double pos;  // in input frames, relative to `last` at index -1
   size_t n = gba_audio(m, in, sizeof in / sizeof *in) / 2;
-  if (m2) {  // 2 PLAYERS: both games, half each. ponytail: a sample one has more than the other is dropped
-    size_t n2 = gba_audio(m2, in2, sizeof in2 / sizeof *in2) / 2;
-    if (n2 < n) n = n2;
-    for (size_t i = 0; i < n * 2; i++) in[i] = (int16_t)((in[i] + in2[i]) / 2);
-  }
   if (aport < 0 || !n) return;
   const double step = 65536.0 / 48000.0;
   unsigned w = atomic_load(&ring_w);
@@ -505,15 +502,18 @@ static void user_files(int32_t user) {
   snprintf(cheats_on_path, sizeof cheats_on_path, "%s/cheats_on.txt", udir);
 }
 
-// ---------------- 2 PLAYERS: a second GBA on the link cable, another PS5 user's controller and save ----------------
-static void *m2, *duo_link;
-static int pad2 = -1;
-static struct pad_sample last_pad2;
-static char sav2_path[112];
-static uint32_t hash1, hash2;  // save_flush: what each game.sav holds
-static uint16_t duo[480 * 160];  // both pictures side by side
+// ---------------- PLAYERS 2-4: more GBAs on the link cable, each another PS5 user's controller and save ----------------
+#define MAX_PLAYERS 4
+static void *ms[MAX_PLAYERS], *link_;  // ms[0] is player 1's machine; link_ is set while np > 1
+static int np = 1;                        // players
+static int pads[MAX_PLAYERS] = {-1, -1, -1, -1};  // [0] unused: player 1 is `pad`
+static int32_t users[MAX_PLAYERS];
+static struct pad_sample last_pads[MAX_PLAYERS];
+static char savs[MAX_PLAYERS][112];
+static uint32_t hash1, hashes[MAX_PLAYERS];  // save_flush: what each game.sav holds
+static uint16_t grid[480 * 320];  // the pictures: side by side (2), or 2x2 (3-4, the 4th black with 3)
 
-// Player 2's choices: this game, then the other GB5 titles installed (/data/homebrew/GBA*/game.gba), by name.
+// New players' choices: this game, then the other GB5 titles installed (/data/homebrew/GBA*/game.gba), by name.
 #define HOMEBREW "/data/homebrew"
 #define MAX_GAMES 128
 static struct game { char id[16], name[40]; } games[MAX_GAMES];
@@ -558,77 +558,91 @@ static void find_games(int es) {
     if (!g->name[0]) snprintf(g->name, sizeof g->name, "%s", g->id);
   }
   if (d) closedir(d);
-  else say("2 players: cannot list " HOMEBREW ": only this game");
+  else say("players: cannot list " HOMEBREW ": only this game");
   qsort(games + 1, (size_t)game_count - 1, sizeof *games, by_name);
   for (int i = 0; i < game_count; i++) game_names[i] = games[i].name;
   menu_games(game_names, game_count);
-  say("2 players: %d games to choose from", game_count);
+  say("players: %d games to choose from", game_count);
 }
 
-// Player 2 is the other signed-in PS5 user (turning on a second DualSense asks the console who uses it).
-// They play games[game] (0 = this one) from their own save in that title's folder, written back there.
-// NULL when started, else why not (for the menu).
-static const char *two_players_on(void *m, int32_t user, int game, const uint8_t *rom, size_t rom_len, const uint8_t *bios, size_t bios_len, int es) {
-  int32_t ids[4] = {-1, -1, -1, -1}, u2 = -1;
+// The next player is a signed-in PS5 user not playing yet (turning on another DualSense asks the console who
+// uses it). They play games[game] (0 = this one) from their own save in that title's folder, written back there.
+// NULL when added, else why not (for the menu).
+static const char *player_add(int game, const uint8_t *rom, size_t rom_len, const uint8_t *bios, size_t bios_len, int es) {
+  int32_t ids[4] = {-1, -1, -1, -1}, u = -1;
   sceUserServiceGetLoginUserIdList(ids);
-  for (int i = 0; i < 4 && u2 == -1; i++)
-    if (ids[i] != -1 && ids[i] != user) u2 = ids[i];
-  if (u2 == -1) return es ? "ENCIENDE OTRO MANDO\nY ELIGE OTRO\nUSUARIO" : "TURN ON ANOTHER\nCONTROLLER AND PICK\nANOTHER USER";
-  if ((pad2 = scePadOpen(u2, 0, 0, NULL)) < 0) {
-    say("2 players: scePadOpen 0x%x", pad2);
+  for (int i = 0; i < 4 && u == -1; i++) {
+    u = ids[i];
+    for (int p = 0; p < np; p++)
+      if (u == users[p]) u = -1;
+  }
+  if (u == -1) return es ? "ENCIENDE OTRO MANDO\nY ELIGE OTRO\nUSUARIO" : "TURN ON ANOTHER\nCONTROLLER AND PICK\nANOTHER USER";
+  int pad_n = scePadOpen(u, 0, 0, NULL);
+  if (pad_n < 0) {
+    say("players: scePadOpen 0x%x", pad_n);
     return es ? "NO SE PUDO ABRIR\nEL OTRO MANDO" : "COULD NOT OPEN\nTHE OTHER CONTROLLER";
   }
   char title[48], dir[72], path[96];
-  size_t len, rom2_len = rom_len;
-  const uint8_t *rom2 = rom;
+  size_t len, rom_n_len = rom_len;
+  const uint8_t *rom_n = rom;
   uint8_t *other = NULL;
   snprintf(title, sizeof title, game ? HOMEBREW "/%s" : "/app0", games[game].id);
   if (game) {
     snprintf(path, sizeof path, "%s/game.gba", title);
-    if (!(other = slurp(path, &rom2_len))) {
-      scePadClose(pad2);
-      pad2 = -1;
-      say("2 players: cannot read %s", path);
+    if (!(other = slurp(path, &rom_n_len))) {
+      scePadClose(pad_n);
+      say("players: cannot read %s", path);
       return es ? "NO SE PUDO LEER\nESE JUEGO" : "COULD NOT READ\nTHAT GAME";
     }
-    rom2 = other;
+    rom_n = other;
   }
   snprintf(dir, sizeof dir, "%s/user", title);  // as user_files() lays it out
   mkdir(dir, 0777);
   chmod(dir, 0777);
-  snprintf(dir, sizeof dir, "%s/user/%08x", title, (uint32_t)u2);
+  snprintf(dir, sizeof dir, "%s/user/%08x", title, (uint32_t)u);
   mkdir(dir, 0777);
   chmod(dir, 0777);
-  // ponytail: a title not opened since per-user saves still has its game.sav at the top: player 2 starts
+  // ponytail: a title not opened since per-user saves still has its game.sav at the top: this player starts
   // without it (whoever opens that title first gets it). Open it once alone to sort that out.
-  snprintf(sav2_path, sizeof sav2_path, "%s/game.sav", dir);
-  m2 = bios ? gba_new_bios(rom2, rom2_len, bios, bios_len) : gba_new(rom2, rom2_len);
+  int p = np++;
+  snprintf(savs[p], sizeof savs[p], "%s/game.sav", dir);
+  ms[p] = bios ? gba_new_bios(rom_n, rom_n_len, bios, bios_len) : gba_new(rom_n, rom_n_len);
   free(other);  // gba_new copied it
-  uint8_t *sav = slurp(sav2_path, &len);
-  if (sav) { gba_load_save(m2, sav, len); free(sav); }
-  void *ms[2] = {m, m2};
-  duo_link = gba_link_new(ms, 2);
-  hash2 = 0;
-  fbw = 480;
-  layout();
-  menu_two_players(1);
-  say("2 players: user %08x, %s, %s", (uint32_t)u2, game ? games[game].id : "this game", sav ? "save loaded" : "new save");
+  uint8_t *sav = slurp(savs[p], &len);
+  if (sav) { gba_load_save(ms[p], sav, len); free(sav); }
+  pads[p] = pad_n;
+  users[p] = u;
+  hashes[p] = 0;
+  say("player %d: user %08x, %s, %s", p + 1, (uint32_t)u, game ? games[game].id : "this game", sav ? "save loaded" : "new save");
   return NULL;
 }
 
-static void two_players_off(void) {
-  if (!duo_link) return;
-  save_flush(m2, sav2_path, &hash2);
-  gba_link_free(duo_link);
-  duo_link = NULL;
-  gba_free(m2);
-  m2 = NULL;
-  scePadClose(pad2);
-  pad2 = -1;
-  fbw = 240;
+// Goes to `want` players (1..4): the last ones leave (saves written), new ones join with the games the menu
+// picked; stops at the first that can't (its reason returned for the menu). The cable is plugged in again.
+static const char *players_set(void *m, int32_t user, int want, const uint8_t *rom, size_t rom_len, const uint8_t *bios, size_t bios_len, int es) {
+  const char *why = NULL;
+  if (link_) gba_link_free(link_);
+  link_ = NULL;
+  ms[0] = m;
+  users[0] = user;
+  while (np > want) {
+    np--;
+    save_flush(ms[np], savs[np], &hashes[np]);
+    gba_free(ms[np]);
+    ms[np] = NULL;
+    scePadClose(pads[np]);
+    pads[np] = -1;
+  }
+  while (np < want && !(why = player_add(menu_game(np), rom, rom_len, bios, bios_len, es))) {}
+  if (np > 1) link_ = gba_link_new(ms, (size_t)np);  // ponytail: a game mid-session sees the cable unplugged and back
+  fbw = np > 1 ? 480 : 240;
+  fbh = np > 2 ? 320 : 160;
+  if (np == 3)  // the 4th quadrant stays black
+    for (int y = 160; y < 320; y++) memset(grid + y * 480 + 240, 0, 240 * 2);
   layout();
-  menu_two_players(0);
-  say("2 players: off");
+  menu_players(np);
+  say("players: %d", np);
+  return why;
 }
 
 int main(void) {
@@ -682,10 +696,10 @@ int main(void) {
   uint32_t prev_b = 0;
   int rw_mode = 0, rw_sel = 0, rw_tick = 0;
   for (unsigned frame = 1;;) {
-    uint32_t b = pad_read(pad, &last_pad), press = b & ~prev_b, b2 = pad_read(pad2, &last_pad2);
+    uint32_t b = pad_read(pad, &last_pad), press = b & ~prev_b;
     prev_b = b;
     // ---- rewind: L3 stops on the timeline; right stick / d-pad scrub; GBA A goes back there, GBA B or L3 cancels
-    if (!rw_mode && fb && !menu_is_open() && !st.hardcore && !duo_link && press & PAD_L3) {  // no rewind in hardcore or 2 players
+    if (!rw_mode && fb && !menu_is_open() && !st.hardcore && np == 1 && press & PAD_L3) {  // no rewind in hardcore or with players linked
       rewind_mark(m, fb);  // "now" is the newest point
       rw_mode = 1;
       rumble(0);
@@ -720,20 +734,25 @@ int main(void) {
       int act = menu_input(b, &st);
       if (memcmp(&before, &st, sizeof st)) layout();
       if (act != MENU_NONE) settings_save(set_path, &st);
-      if (act == MENU_QUIT) { two_players_off(); break; }
+      if (act == MENU_QUIT) { players_set(m, user, 1, rom, rom_len, bios, bios_len, es); break; }
       if (act == MENU_RECENTER) recenter();
       if (act == MENU_UPDATE_CHEATS) update_cheats(cheat_src, es);
       if (act == MENU_SAVE_STATE) state_save(m, menu_slot());
       if (act == MENU_LOAD_STATE && !st.hardcore && state_load(m, menu_slot())) fb = NULL;  // the framebuffer moved: next gba_frame gives it
-      if (act == MENU_TWO_PLAYERS) {  // on or off: either way the picture changes, so back to the game
-        const char *why = duo_link ? (two_players_off(), NULL) : two_players_on(m, user, menu_game(), rom, rom_len, bios, bios_len, es);
+      if (act == MENU_PLAYERS) {  // the picture changes, so back to the game unless someone couldn't join
+        int was = np;
+        const char *why = players_set(m, user, menu_players_wanted(), rom, rom_len, bios, bios_len, es);
+        if (why && was == 1 && np > 1) {  // some joined: the menu stays over player 1's picture, now in the grid
+          for (int y = 0; y < 160; y++) memcpy(grid + y * 480, fb + y * 240, 240 * 2);
+          fb = grid;
+        }
         if (why) menu_status(why);
         else { menu_close(); fb = NULL; continue; }
       }
       if (act == MENU_HARDCORE) ra_set_hardcore(st.hardcore);
       ra_lb_popups(st.lb_popups);
       if (act == MENU_RESET || (act == MENU_HARDCORE && st.hardcore)) {  // hardcore on: from the start, as RA requires
-        two_players_off();  // the link holds the old machine
+        players_set(m, user, 1, rom, rom_len, bios, bios_len, es);  // the link holds the old machine
         save_flush(m, sav_path, &hash1);
         gba_free(m);
         m = bios ? gba_new_bios(rom, rom_len, bios, bios_len) : gba_new(rom, rom_len);
@@ -746,41 +765,51 @@ int main(void) {
       if (menu_is_open()) {  // over player 1's picture
         for (int y = 0; y < 160; y++) memcpy(paused + y * 240, fb + y * fbw, 240 * 2);
         menu_draw(paused, &st, es);
-        if (fbw == 480)
-          for (int y = 0; y < 160; y++) memcpy(duo + y * 480, paused + y * 240, 240 * 2);
-        present(fbw == 480 ? duo : paused);
+        if (np > 1)  // player 1 is top left in every layout
+          for (int y = 0; y < 160; y++) memcpy(grid + y * 480, paused + y * 240, 240 * 2);
+        present(np > 1 ? grid : paused);
         continue;
       }
     }
     while (aport >= 0 && atomic_load(&ring_w) - atomic_load(&ring_r) > AHEAD) sceKernelUsleep(1000);
+    struct timespec t0, t1;
+    if (np > 1) clock_gettime(CLOCK_MONOTONIC, &t0);
     // TURBO runs several GBA frames per shown frame; only the last one's sound is played, so the
     // audio clock above keeps the shown frames at normal speed and the game runs st.turbo times faster.
     for (int t = 0; t < st.turbo; t++, frame++) {
       if (!st.hardcore) cheats_apply(m, gba_keys(b, &last_pad));  // no cheats in hardcore
       if (hw) sensors(m, hw);  // ponytail: cartridge sensors and rumble are player 1's only
-      if (duo_link) {
-        const uint16_t keys[2] = {gba_keys(b, &last_pad), gba_keys(b2, &last_pad2)};
-        gba_link_frame(duo_link, keys);
-        for (int y = 0; y < 160; y++) {
-          memcpy(duo + y * 480, gba_link_fb(duo_link, 0) + y * 240, 240 * 2);
-          memcpy(duo + y * 480 + 240, gba_link_fb(duo_link, 1) + y * 240, 240 * 2);
-        }
-        fb = duo;
+      if (link_) {
+        uint16_t keys[MAX_PLAYERS] = {gba_keys(b, &last_pad)};
+        for (int p = 1; p < np; p++) keys[p] = gba_keys(pad_read(pads[p], &last_pads[p]), &last_pads[p]);
+        gba_link_frame(link_, keys);
+        for (int p = 0; p < np; p++)
+          for (int y = 0; y < 160; y++) memcpy(grid + (p / 2 * 160 + y) * 480 + p % 2 * 240, gba_link_fb(link_, (size_t)p) + y * 240, 240 * 2);
+        fb = grid;
       } else {
         fb = gba_frame(m, gba_keys(b, &last_pad));
         rewind_record(m, fb);
       }
       ra_frame();  // RetroAchievements: player 1
-      if (t + 1 < st.turbo) {
-        gba_audio(m, scratch, sizeof scratch / sizeof *scratch);
-        if (m2) gba_audio(m2, scratch, sizeof scratch / sizeof *scratch);
-      }
+      if (t + 1 < st.turbo) gba_audio(m, scratch, sizeof scratch / sizeof *scratch);
+      for (int p = 1; p < np; p++) gba_audio(ms[p], scratch, sizeof scratch / sizeof *scratch);  // sound: player 1's only
       if (frame % 30 == 0) {  // ~0.5 s after the game saves; writes only when it changed
         save_flush(m, sav_path, &hash1);
-        if (m2) save_flush(m2, sav2_path, &hash2);
+        for (int p = 1; p < np; p++) save_flush(ms[p], savs[p], &hashes[p]);
       }
     }
-    audio_push(m, m2);
+    if (np > 1) {  // linked: every machine runs on this thread; log.txt gets the cost about once a second
+      static double emu_ms;
+      static int emu_n;
+      clock_gettime(CLOCK_MONOTONIC, &t1);
+      emu_ms += (double)(t1.tv_sec - t0.tv_sec) * 1e3 + (double)(t1.tv_nsec - t0.tv_nsec) / 1e6;
+      if (++emu_n == 60) {  // ponytail: one thread for all; a thread per machine if this nears 16.7 ms
+        say("players %d, turbo x%d: %.2f ms per frame emulating (of 16.7)", np, st.turbo, emu_ms / 60);
+        emu_ms = 0;
+        emu_n = 0;
+      }
+    }
+    audio_push(m);
     if (hw & HW_RUMBLE) {  // the share of these frames the cart's motor was on; OPTIONS > RUMBLE can mute it
       int duty = gba_hw_rumble(m);
       rumble(st.rumble ? duty : 0);

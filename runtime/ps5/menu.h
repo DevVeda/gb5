@@ -16,10 +16,10 @@ struct settings {
   int rumble;   // rumble carts: pass the motor to the DualSense
   int gyro_sens, tilt_sens;  // 1..10, 5 = mGBA's scale (x level / 5)
   int hardcore;  // RetroAchievements hardcore: no state loading, rewind or cheats; turning it on resets the game
-  int lb_popups;  // RetroAchievements leaderboard notifications (started, failed, submitted, rank); RA lets players turn them off
+  int lb_popups;  // RetroAchievements leaderboard notifications + trackers (off by default); RA lets players hide them
 };
 
-enum { MENU_NONE, MENU_CLOSED, MENU_RESET, MENU_QUIT, MENU_SAVE_STATE, MENU_LOAD_STATE, MENU_RECENTER, MENU_UPDATE_CHEATS, MENU_HARDCORE, MENU_TWO_PLAYERS };
+enum { MENU_NONE, MENU_CLOSED, MENU_RESET, MENU_QUIT, MENU_SAVE_STATE, MENU_LOAD_STATE, MENU_RECENTER, MENU_UPDATE_CHEATS, MENU_HARDCORE, MENU_PLAYERS };
 // Cartridge extras, as gba_hw(): which sensor options OPTIONS shows.
 enum { HW_CLOCK = 1, HW_LIGHT = 2, HW_GYRO = 4, HW_RUMBLE = 8, HW_TILT = 16 };
 
@@ -29,13 +29,15 @@ void menu_open(int slots_used, unsigned hw);
 int menu_slot(void);
 // CHEATS shows "UPDATE FROM THE INTERNET" when the title knows its libretro cheat file.
 void menu_cheats_updatable(int yes);
-// 2 PLAYERS is on (the row then reads 1 PLAYER; LOAD STATE greys out).
-void menu_two_players(int on);
+// How many players are linked now, 1..4 (more than 1: LOAD STATE greys out). PLAYERS < n > picks how many
+// MENU_PLAYERS asks for: menu_players_wanted().
+void menu_players(int n);
+int menu_players_wanted(void);
 void menu_close(void);
-// 2 PLAYERS' game list: names[0] is this game, the rest other GB5 titles on the console. With only this game
-// the list is skipped. menu_game() is the one picked for MENU_TWO_PLAYERS.
+// The new players' game list: names[0] is this game, the rest other GB5 titles on the console. With only this
+// game the list is skipped. menu_game(p) is the one picked for player p+1 (p = 1..3) for MENU_PLAYERS.
 void menu_games(const char *const *names, int n);
-int menu_game(void);
+int menu_game(int p);
 // A line at the foot of the page now showing (the cheat update's result); "" clears it.
 void menu_status(const char *msg);
 int menu_is_open(void);

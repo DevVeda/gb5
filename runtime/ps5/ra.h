@@ -8,7 +8,8 @@
 // hardcore: start in RetroAchievements' hardcore mode (the caller blocks state loading, rewind, cheats).
 // user_dir: the PS5 user's folder in the title, for the offline queue and cache.
 void ra_start(const void *machine, const uint8_t *rom, size_t len, int hardcore, int32_t ps5_user, const char *user_dir);
-// OPTIONS > LEADERBOARD ALERTS: show leaderboard started / failed / submitted / rank notifications.
+// OPTIONS > LEADERBOARD ALERTS: show leaderboard started / failed / submitted / rank notifications and the
+// trackers (bottom right). Off by default; the leaderboards run and submit either way.
 void ra_lb_popups(int on);
 // The player switched mode in OPTIONS. Turning it on: the caller resets the game (then ra_reset).
 void ra_set_hardcore(int on);

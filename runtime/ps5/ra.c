@@ -38,7 +38,7 @@ static int es;  // console in Spanish
 static char user[64], token[64];  // RA Hub's session: the token only until login completes
 static int offline;               // this session started without RetroAchievements (cached data)
 static int loaded;                // the game is loaded: earlier sessions' records can be replayed
-static int lb_popups = 1;         // leaderboard notifications (the trackers always show)
+static int lb_popups;             // leaderboard notifications and trackers; off by default (RA lets players hide them)
 static time_t session_start;
 static char hash[33];             // the ROM's MD5: how RA knows the game
 static char dir[160] = ".";  // the PS5 user's folder in the title (main.c): queue and cache live there
@@ -349,7 +349,7 @@ const uint32_t *ra_hud(int *h) {
     const char *lines[2 * HUD_MAX + 1], *bs[2 * HUD_MAX + 1];
     int n = 0;
     badges = card_badges_loaded();
-    for (int i = 0; i < ntrk; i++) bs[n] = NULL, lines[n++] = trk[i].text;
+    for (int i = 0; lb_popups && i < ntrk; i++) bs[n] = NULL, lines[n++] = trk[i].text;  // a whole-game timer would never leave
     for (int i = 0; i < nchal; i++) bs[n] = chal[i].badge, lines[n++] = chal[i].text;
     if (prog[0]) bs[n] = prog_badge, lines[n++] = prog;
     px = n ? card_hud(lines, bs, n, &ph) : NULL;
@@ -529,7 +529,12 @@ void ra_start(const void *m, const uint8_t *rom, size_t len, int hardcore, int32
   rc_client_begin_login_with_token(client, user, token, on_login, NULL);
 }
 
-void ra_lb_popups(int on) { lb_popups = on; }
+void ra_lb_popups(int on) {
+  pthread_mutex_lock(&hud_mx);
+  lb_popups = on;
+  hud_dirty = 1;  // trackers appear / go at once
+  pthread_mutex_unlock(&hud_mx);
+}
 
 void ra_set_hardcore(int on) {
   // rcheevos raises RC_CLIENT_EVENT_RESET when it's turned on mid-game; main resets either way.

@@ -114,7 +114,7 @@ changed and skips (and reports) the ones that are open.
 | `--size pixel\|fill\|16:9` | picture size to start with |
 | `--a-button cross\|circle` | which button is the GBA's A: ✕ (`cross`) or ○ (`circle`) |
 | `--lcd`, `--gba-colors` (`--no-lcd`…) | LCD grid / GBA screen colours |
-| `--hardcore`, `--lb-popups` (`--no-hardcore`…) | RetroAchievements hardcore mode / leaderboard notifications (on by default) |
+| `--hardcore`, `--lb-popups` (`--no-hardcore`…) | RetroAchievements hardcore mode / leaderboard alerts and trackers on screen (both off by default) |
 | `--save` | import a `.sav` (mGBA, VBA, cartridge). **After deploying, the first PS5 profile to open the game gets it, replacing its own** |
 | `--bios` | your BIOS; `--bios none` to leave it out |
 | `--title-id` | force the ID |
@@ -170,9 +170,10 @@ unique per game and version, so building again replaces the same icon. Codes wit
   only in the games that have them: rumble on/off, sunlight, gyro axis and sensitivity, tilt sensitivity
   and levelling
 - **Turbo** ×1 / ×2 / ×4
-- **2 Players**: turn on a second DualSense and pick another PS5 user; they choose this game or any other
-  GB5 title on the console (Ruby with Emerald, say) and play it from their own save in that title, side by
-  side, joined by the link cable (trades, battles). Back with **1 Player**
+- **Players** < 1 2 3 4 >: each extra player turns on another DualSense and picks another PS5 user; they
+  choose this game or any other GB5 title on the console (Ruby with Emerald, say) and play it from their
+  own save in that title, joined by the link cable (trades, battles, races). 2 players side by side, 3-4
+  in a 2×2 grid. Sound is player 1's; load state and rewind are off while linked. Back with **1**
 - **Reset**, **Quit**
 
 #### Cartridge hardware
@@ -202,9 +203,10 @@ With [RA Hub](https://github.com/DevVeda/rahub) running on the PS5 and signed in
 - All its RetroAchievements calls go through `/dorequest`, since the title has no TLS of its own.
 - Badges come from `/badge` and cheat updates from `/cheats`.
 - An unlock shows a toast like the PS5's trophy one (badge + name), top right.
-- Bottom right, while they apply: measured progress (`3/10`), active challenges and leaderboard trackers.
-  Leaderboard attempts (started, failed, submitted, your rank) arrive as notifications; they can be turned
-  off in Settings or GB5 Menu → Options (leaderboards keep running).
+- Bottom right, while they apply: measured progress (`3/10`, a few seconds) and active challenges.
+  Leaderboards on screen (trackers bottom right; started, failed, submitted, your rank as notifications)
+  are off by default (some run the whole game); turn them on in Settings or GB5 Menu → Options.
+  Leaderboards run and submit either way.
 - **Offline:** a game that was started online once also starts without a connection. Unlocks and
   leaderboard entries RetroAchievements hasn't confirmed are kept in `ra_pending.txt` and sent when the
   connection returns, in that session or the next one.
@@ -257,7 +259,7 @@ tools/register.c     payload that registers/uninstalls titles in ShadowMountPlus
 
 - The game runs on `gba-core`'s **interpreter**, not on gba-recomp's recompiled code (yet). It's more
   than fast enough.
-- No e-Reader and no link cable.
+- No e-Reader.
 - Home-screen music: only with a ready `.at9`.
 - Cheats: plain CodeBreaker only. Encrypted GameShark/Action Replay ones aren't listed.
 - Save states belong to a runtime version: after some updates, old ones are refused (the cartridge
@@ -407,7 +409,7 @@ Opciones de `build`:
 | `--size pixel\|fill\|16:9` | tamaño de la imagen al empezar |
 | `--a-button cross\|circle` | qué botón es la A de la GBA: ✕ (`cross`) u ○ (`circle`) |
 | `--lcd`, `--gba-colors` (`--no-lcd`…) | filtro LCD / colores de la pantalla de GBA |
-| `--hardcore`, `--lb-popups` (`--no-hardcore`…) | modo hardcore de RetroAchievements / avisos de clasificaciones (activados por defecto) |
+| `--hardcore`, `--lb-popups` (`--no-hardcore`…) | modo hardcore de RetroAchievements / avisos y marcadores de clasificaciones en pantalla (ambos apagados por defecto) |
 | `--save` | importar un `.sav` (mGBA, VBA, cartucho). **Tras desplegar, se lo queda el primer perfil de la PS5 que abra el juego, reemplazando el suyo** |
 | `--bios` | tu BIOS; `--bios none` para no incluirla |
 | `--title-id` | forzar el ID |
@@ -464,9 +466,11 @@ En **Opciones** se puede cambiar a A = ○, B = ✕ (las posiciones de Nintendo)
   y solo en los juegos que los tienen: vibración sí/no, sol, eje y sensibilidad del giroscopio,
   sensibilidad y centrado de la inclinación
 - **Turbo** ×1 / ×2 / ×4
-- **2 Jugadores**: enciende un segundo DualSense y elige otro usuario de la PS5; elige este juego u otro
-  título de GB5 de la consola (Ruby con Emerald, por ejemplo) y juega con su propia partida de ese título,
-  lado a lado, unidos por el cable link (intercambios, combates). Se vuelve con **1 Jugador**
+- **Jugadores** < 1 2 3 4 >: cada jugador extra enciende otro DualSense y elige otro usuario de la PS5;
+  elige este juego u otro título de GB5 de la consola (Ruby con Emerald, por ejemplo) y juega con su propia
+  partida de ese título, unidos por el cable link (intercambios, combates, carreras). 2 jugadores lado a
+  lado, 3-4 en una cuadrícula de 2×2. El sonido es del jugador 1; cargar estado y rebobinar no van mientras
+  están conectados. Se vuelve con **1**
 - **Reiniciar**, **Salir**
 
 #### Hardware del cartucho
@@ -496,9 +500,10 @@ Con [RA Hub](https://github.com/DevVeda/rahub) corriendo en la PS5 y la sesión 
 - Todas sus llamadas a RetroAchievements pasan por `/dorequest`, porque el título no tiene TLS propio.
 - Los badges llegan por `/badge` y la actualización de cheats por `/cheats`.
 - Al desbloquear un logro sale un aviso como el de trofeos de la PS5 (badge + nombre), arriba a la derecha.
-- Abajo a la derecha, mientras aplican: progreso medido (`3/10`), retos activos y marcadores de las
-  clasificaciones (leaderboards). Los intentos (iniciado, fallido, enviado, tu puesto) llegan como notificaciones;
-  se pueden apagar en Ajustes o GB5 Menu → Opciones (las clasificaciones siguen funcionando).
+- Abajo a la derecha, mientras aplican: progreso medido (`3/10`, unos segundos) y retos activos. Las
+  clasificaciones (leaderboards) en pantalla (marcadores abajo a la derecha; iniciado, fallido, enviado y tu
+  puesto como notificaciones) vienen apagadas (algunas duran todo el juego); se encienden en Ajustes o
+  GB5 Menu → Opciones. Las clasificaciones funcionan y se envían igual.
 - **Sin conexión:** un juego que ya arrancó una vez con conexión también arranca sin ella. Los logros y
   las entradas de clasificación que RetroAchievements no ha confirmado se guardan en `ra_pending.txt` y se
   envían cuando vuelve la conexión, en esa sesión o en la siguiente.
@@ -550,7 +555,7 @@ tools/register.c     payload que registra/desinstala títulos en ShadowMountPlus
 
 - El juego corre con el **intérprete** de `gba-core`, no con el código recompilado de gba-recomp
   (todavía). Va de sobra de rápido.
-- No se emulan el e-Reader ni el cable link.
+- No se emula el e-Reader.
 - Música del menú: solo con un `.at9` ya hecho.
 - Cheats: solo CodeBreaker en claro. Los GameShark/Action Replay cifrados no se listan.
 - Los estados de guardado son de la versión del runtime: tras ciertas actualizaciones, los viejos se
