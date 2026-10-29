@@ -114,6 +114,7 @@ changed and skips (and reports) the ones that are open.
 | `--size pixel\|fill\|16:9` | picture size to start with |
 | `--a-button cross\|circle` | which button is the GBA's A: ✕ (`cross`) or ○ (`circle`) |
 | `--lcd`, `--gba-colors` (`--no-lcd`…) | LCD grid / GBA screen colours |
+| `--hardcore`, `--lb-popups` (`--no-hardcore`…) | RetroAchievements hardcore mode / leaderboard notifications (on by default) |
 | `--save` | import a `.sav` (mGBA, VBA, cartridge). **On deploy it replaces the save on the console** |
 | `--bios` | your BIOS; `--bios none` to leave it out |
 | `--title-id` | force the ID |
@@ -165,7 +166,7 @@ unique per game and version, so building again replaces the same icon. Codes wit
 - **Cheats**: turn them on and off one by one (all start off). **Update from the internet** fetches the
   game's latest file from libretro-database through RA Hub, without the computer, and keeps the ones you had on.
 - **Options**: size (16:9, fill height, integer ×6: every GBA pixel exactly 6×6), LCD grid, GBA colours,
-  A button ✕/○, hardcore, and
+  A button ✕/○, hardcore, leaderboard alerts, and
   only in the games that have them: rumble on/off, sunlight, gyro axis and sensitivity, tilt sensitivity
   and levelling
 - **Turbo** ×1 / ×2 / ×4
@@ -199,7 +200,8 @@ With [RA Hub](https://github.com/DevVeda/rahub) running on the PS5 and signed in
 - Badges come from `/badge` and cheat updates from `/cheats`.
 - An unlock shows a toast like the PS5's trophy one (badge + name), top right.
 - Bottom right, while they apply: measured progress (`3/10`), active challenges and leaderboard trackers.
-  Leaderboard attempts (started, failed, submitted, your rank) arrive as notifications.
+  Leaderboard attempts (started, failed, submitted, your rank) arrive as notifications; they can be turned
+  off in Settings or GB5 Menu → Options (leaderboards keep running).
 - **Offline:** a game that was started online once also starts without a connection. Unlocks and
   leaderboard entries RetroAchievements hasn't confirmed are kept in `ra_pending.txt` and sent when the
   connection returns, in that session or the next one.
@@ -400,6 +402,7 @@ Opciones de `build`:
 | `--size pixel\|fill\|16:9` | tamaño de la imagen al empezar |
 | `--a-button cross\|circle` | qué botón es la A de la GBA: ✕ (`cross`) u ○ (`circle`) |
 | `--lcd`, `--gba-colors` (`--no-lcd`…) | filtro LCD / colores de la pantalla de GBA |
+| `--hardcore`, `--lb-popups` (`--no-hardcore`…) | modo hardcore de RetroAchievements / avisos de clasificaciones (activados por defecto) |
 | `--save` | importar un `.sav` (mGBA, VBA, cartucho). **Al desplegar reemplaza la partida de la consola** |
 | `--bios` | tu BIOS; `--bios none` para no incluirla |
 | `--title-id` | forzar el ID |
@@ -452,7 +455,7 @@ En **Opciones** se puede cambiar a A = ○, B = ✕ (las posiciones de Nintendo)
   baja la versión más reciente del juego en libretro-database a través de RA Hub, sin el computador, y mantiene
   activados los que tenías.
 - **Opciones**: tamaño (16:9, llenar alto, entero ×6: cada píxel de GBA mide exactamente 6×6), filtro LCD,
-  colores de GBA, botón A ✕/○, hardcore,
+  colores de GBA, botón A ✕/○, hardcore, avisos de clasificación,
   y solo en los juegos que los tienen: vibración sí/no, sol, eje y sensibilidad del giroscopio,
   sensibilidad y centrado de la inclinación
 - **Turbo** ×1 / ×2 / ×4
@@ -486,7 +489,8 @@ Con [RA Hub](https://github.com/DevVeda/rahub) corriendo en la PS5 y la sesión 
 - Los badges llegan por `/badge` y la actualización de cheats por `/cheats`.
 - Al desbloquear un logro sale un aviso como el de trofeos de la PS5 (badge + nombre), arriba a la derecha.
 - Abajo a la derecha, mientras aplican: progreso medido (`3/10`), retos activos y marcadores de las
-  clasificaciones (leaderboards). Los intentos (iniciado, fallido, enviado, tu puesto) llegan como notificaciones.
+  clasificaciones (leaderboards). Los intentos (iniciado, fallido, enviado, tu puesto) llegan como notificaciones;
+  se pueden apagar en Ajustes o GB5 Menu → Opciones (las clasificaciones siguen funcionando).
 - **Sin conexión:** un juego que ya arrancó una vez con conexión también arranca sin ella. Los logros y
   las entradas de clasificación que RetroAchievements no ha confirmado se guardan en `ra_pending.txt` y se
   envían cuando vuelve la conexión, en esa sesión o en la siguiente.

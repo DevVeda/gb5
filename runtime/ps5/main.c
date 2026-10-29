@@ -483,6 +483,7 @@ int main(void) {
   settings_defaults(&st);
   settings_read(DEFAULTS_PATH, &st);
   settings_read(SET_PATH, &st);
+  ra_lb_popups(st.lb_popups);
   ra_start(m, rom, rom_len, st.hardcore);  // async: signs in through RA Hub, notifies when connected
   uint8_t *sav = slurp(SAV_PATH, &sav_len);
   say("cartridge saves to: %s", gba_save_kind(m));
@@ -561,6 +562,7 @@ int main(void) {
       if (act == MENU_SAVE_STATE) state_save(m, menu_slot());
       if (act == MENU_LOAD_STATE && !st.hardcore && state_load(m, menu_slot())) fb = NULL;  // the framebuffer moved: next gba_frame gives it
       if (act == MENU_HARDCORE) ra_set_hardcore(st.hardcore);
+      ra_lb_popups(st.lb_popups);
       if (act == MENU_RESET || (act == MENU_HARDCORE && st.hardcore)) {  // hardcore on: from the start, as RA requires
         save_flush(m);
         gba_free(m);

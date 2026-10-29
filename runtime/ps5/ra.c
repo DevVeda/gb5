@@ -38,6 +38,7 @@ static int es;  // console in Spanish
 static char user[64], token[64];  // RA Hub's session: the token only until login completes
 static int offline;               // this session started without RetroAchievements (cached data)
 static int loaded;                // the game is loaded: earlier sessions' records can be replayed
+static int lb_popups = 1;         // leaderboard notifications (the trackers always show)
 static time_t session_start;
 static char hash[33];             // the ROM's MD5: how RA knows the game
 #ifndef APP0
@@ -320,14 +321,14 @@ static void on_log(const char *msg, const rc_client_t *c) {
 // Active challenges, leaderboard trackers and the measured-progress line, drawn bottom right (card_hud).
 // rcheevos raises them from rc_client_do_frame (main thread), a few from server callbacks: one lock.
 #define HUD_MAX 6
-struct hud_item { uint32_t id; char text[96]; };
+struct hud_item { uint32_t id; char text[96], badge[32]; };
 static struct hud_item chal[HUD_MAX], trk[HUD_MAX];
 static int nchal, ntrk, hud_dirty;
-static char prog[96];
+static char prog[96], prog_badge[32];
 static pthread_mutex_t hud_mx = PTHREAD_MUTEX_INITIALIZER;
 
 // Put (text != NULL) or remove the entry `id` in list l of *n.
-static void hud_set(struct hud_item *l, int *n, uint32_t id, const char *text) {
+static void hud_set(struct hud_item *l, int *n, uint32_t id, const char *text, const char *badge) {
   int i = 0;
   while (i < *n && l[i].id != id) i++;
   if (!text) {
@@ -336,6 +337,7 @@ static void hud_set(struct hud_item *l, int *n, uint32_t id, const char *text) {
     if (i == *n) (*n)++;
     l[i].id = id;
     snprintf(l[i].text, sizeof l[i].text, "%s", text);
+    snprintf(l[i].badge, sizeof l[i].badge, "%s", badge ? badge : "");
   }
   hud_dirty = 1;
 }
@@ -343,14 +345,16 @@ static void hud_set(struct hud_item *l, int *n, uint32_t id, const char *text) {
 const uint32_t *ra_hud(int *h) {
   static const uint32_t *px;
   static int ph;
+  static unsigned badges;
   pthread_mutex_lock(&hud_mx);
-  if (hud_dirty) {
-    const char *lines[2 * HUD_MAX + 1];
+  if (hud_dirty || badges != card_badges_loaded()) {  // or a badge arrived
+    const char *lines[2 * HUD_MAX + 1], *bs[2 * HUD_MAX + 1];
     int n = 0;
-    for (int i = 0; i < ntrk; i++) lines[n++] = trk[i].text;
-    for (int i = 0; i < nchal; i++) lines[n++] = chal[i].text;
-    if (prog[0]) lines[n++] = prog;
-    px = n ? card_hud(lines, n, &ph) : NULL;
+    badges = card_badges_loaded();
+    for (int i = 0; i < ntrk; i++) bs[n] = NULL, lines[n++] = trk[i].text;
+    for (int i = 0; i < nchal; i++) bs[n] = chal[i].badge, lines[n++] = chal[i].text;
+    if (prog[0]) bs[n] = prog_badge, lines[n++] = prog;
+    px = n ? card_hud(lines, bs, n, &ph) : NULL;
     hud_dirty = 0;
   }
   pthread_mutex_unlock(&hud_mx);
@@ -364,18 +368,19 @@ static void indicators(const rc_client_event_t *e) {
   switch (e->type) {
     case RC_CLIENT_EVENT_ACHIEVEMENT_CHALLENGE_INDICATOR_SHOW:
       snprintf(t, sizeof t, "%s %s", es ? "Reto:" : "Challenge:", e->achievement->title);
-      hud_set(chal, &nchal, e->achievement->id, t);
+      hud_set(chal, &nchal, e->achievement->id, t, e->achievement->badge_name);
       break;
-    case RC_CLIENT_EVENT_ACHIEVEMENT_CHALLENGE_INDICATOR_HIDE: hud_set(chal, &nchal, e->achievement->id, NULL); break;
+    case RC_CLIENT_EVENT_ACHIEVEMENT_CHALLENGE_INDICATOR_HIDE: hud_set(chal, &nchal, e->achievement->id, NULL, NULL); break;
     case RC_CLIENT_EVENT_ACHIEVEMENT_PROGRESS_INDICATOR_SHOW:
     case RC_CLIENT_EVENT_ACHIEVEMENT_PROGRESS_INDICATOR_UPDATE:  // rcheevos hides it again after 2 s
       snprintf(prog, sizeof prog, "%s  %s", e->achievement->measured_progress, e->achievement->title);
+      snprintf(prog_badge, sizeof prog_badge, "%s", e->achievement->badge_name);
       hud_dirty = 1;
       break;
     case RC_CLIENT_EVENT_ACHIEVEMENT_PROGRESS_INDICATOR_HIDE: prog[0] = 0; hud_dirty = 1; break;
     case RC_CLIENT_EVENT_LEADERBOARD_TRACKER_SHOW:
-    case RC_CLIENT_EVENT_LEADERBOARD_TRACKER_UPDATE: hud_set(trk, &ntrk, e->leaderboard_tracker->id, e->leaderboard_tracker->display); break;
-    case RC_CLIENT_EVENT_LEADERBOARD_TRACKER_HIDE: hud_set(trk, &ntrk, e->leaderboard_tracker->id, NULL); break;
+    case RC_CLIENT_EVENT_LEADERBOARD_TRACKER_UPDATE: hud_set(trk, &ntrk, e->leaderboard_tracker->id, e->leaderboard_tracker->display, NULL); break;
+    case RC_CLIENT_EVENT_LEADERBOARD_TRACKER_HIDE: hud_set(trk, &ntrk, e->leaderboard_tracker->id, NULL, NULL); break;
   }
   pthread_mutex_unlock(&hud_mx);
 }
@@ -393,6 +398,9 @@ static void on_event(const rc_client_event_t *e, rc_client_t *c) {
   }
   else if (e->type == RC_CLIENT_EVENT_GAME_COMPLETED)
     notify(es ? "¡Juego completado en RetroAchievements!" : "Game completed on RetroAchievements!");
+  else if (!lb_popups && (e->type == RC_CLIENT_EVENT_LEADERBOARD_STARTED || e->type == RC_CLIENT_EVENT_LEADERBOARD_FAILED ||
+                          e->type == RC_CLIENT_EVENT_LEADERBOARD_SUBMITTED || e->type == RC_CLIENT_EVENT_LEADERBOARD_SCOREBOARD))
+    ;  // turned off in OPTIONS (leaderboards still run and submit)
   else if (e->type == RC_CLIENT_EVENT_LEADERBOARD_STARTED)
     notify(es ? "Clasificación: intento iniciado\n%s" : "Leaderboard attempt started\n%s", e->leaderboard->title);
   else if (e->type == RC_CLIENT_EVENT_LEADERBOARD_FAILED)
@@ -517,6 +525,8 @@ void ra_start(const void *m, const uint8_t *rom, size_t len, int hardcore) {
   rc_client_set_hardcore_enabled(client, hardcore);
   rc_client_begin_login_with_token(client, user, token, on_login, NULL);
 }
+
+void ra_lb_popups(int on) { lb_popups = on; }
 
 void ra_set_hardcore(int on) {
   // rcheevos raises RC_CLIENT_EVENT_RESET when it's turned on mid-game; main resets either way.

@@ -111,7 +111,7 @@ enum { PAGE_MAIN, PAGE_DISPLAY, PAGE_CHEATS, PAGE_ACH };
 #define ACH_ROWS 6  // achievements visible at once
 #define CHEAT_ROWS 9  // visible at once; the list scrolls
 enum { M_RESUME, M_SAVE, M_LOAD, M_ACH, M_CHEATS, M_DISPLAY, M_TURBO, M_RESET, M_QUIT, M_COUNT };
-enum { D_SIZE, D_LCD, D_COLOR, D_SWAP, D_HARDCORE, D_RUMBLE, D_SUN, D_GYRO, D_GYRO_SENS, D_TILT_SENS, D_CENTER, D_BACK, D_COUNT };
+enum { D_SIZE, D_LCD, D_COLOR, D_SWAP, D_HARDCORE, D_LB_POPUPS, D_RUMBLE, D_SUN, D_GYRO, D_GYRO_SENS, D_TILT_SENS, D_CENTER, D_BACK, D_COUNT };
 
 static int open_, page, sel, prev_buttons, held_frames, slot = 1, slots, ach_count = -1;
 static int main_sel;  // where the cursor was on the main page: the menu reopens there
@@ -208,6 +208,7 @@ static int menu_input_(uint32_t b, struct settings *s) {
     if (dir && row == D_COLOR) s->color = !s->color;
     if (dir && row == D_SWAP) s->swap_ab = !s->swap_ab;
     if (dir && row == D_RUMBLE) s->rumble = !s->rumble;
+    if (dir && row == D_LB_POPUPS) s->lb_popups = !s->lb_popups;
     if (dir && row == D_SUN) s->sun = s->sun + dir < 0 ? 0 : s->sun + dir > 10 ? 10 : s->sun + dir;
     if (dir && row == D_GYRO) s->gyro = (s->gyro + dir + 6) % 6;
     if (dir && row == D_GYRO_SENS) s->gyro_sens = s->gyro_sens + dir < 1 ? 1 : s->gyro_sens + dir > 10 ? 10 : s->gyro_sens + dir;
@@ -320,7 +321,7 @@ void menu_draw(uint16_t *fb, const struct settings *s, int es) {
     const char *on = es ? "SI" : "ON", *off = es ? "NO" : "OFF";
     static const char *axes[] = {"X+", "X-", "Y+", "Y-", "Z+", "Z-"};
     int rows[D_COUNT], nrows = options(rows);
-    int x = 24, y = 8, w = 192, h = 10 + nrows * 15;
+    int x = 24, w = 192, h = 10 + nrows * 15, y = h > 144 ? (160 - h) / 2 : 8;  // 10 rows (gyro + rumble carts) fill the screen
     box(fb, x, y, w, h);
     for (int r = 0; r < nrows; r++) {
       int i = rows[r];
@@ -329,6 +330,7 @@ void menu_draw(uint16_t *fb, const struct settings *s, int es) {
       if (i == D_COLOR) snprintf(line, sizeof line, "%s: < %s >", es ? "COLOR GBA" : "GBA COLORS", s->color ? on : off);
       if (i == D_SWAP) snprintf(line, sizeof line, "%s: < %s >", es ? "BOTON A" : "A BUTTON", s->swap_ab ? BTN_CROSS : BTN_CIRCLE);
       if (i == D_HARDCORE) snprintf(line, sizeof line, "HARDCORE: < %s >", s->hardcore ? on : off);
+      if (i == D_LB_POPUPS) snprintf(line, sizeof line, "%s: < %s >", es ? "AVISOS CLASIFICACION" : "LEADERBOARD ALERTS", s->lb_popups ? on : off);
       if (i == D_RUMBLE) snprintf(line, sizeof line, "%s: < %s >", es ? "VIBRACION" : "RUMBLE", s->rumble ? on : off);
       if (i == D_SUN) snprintf(line, sizeof line, "%s: < %d >", es ? "SOL" : "SUN", s->sun);
       if (i == D_GYRO) snprintf(line, sizeof line, "%s: < %s >", es ? "GIRO" : "GYRO", axes[s->gyro]);
@@ -371,7 +373,7 @@ void rewind_draw(uint16_t *fb, int sel, int es, int swap_ab) {
 
 // ---------------- settings.txt ----------------
 void settings_defaults(struct settings *s) {
-  *s = (struct settings){SIZE_STRETCH, 0, 0, 1, 1, 5, 4, 1, 5, 5, 0};  // 16:9, no grid, own colours, x1, A = Cross, half sun, gyro Z+, rumble on, sens 5, casual
+  *s = (struct settings){SIZE_STRETCH, 0, 0, 1, 1, 5, 4, 1, 5, 5, 0, 1};  // 16:9, no grid, own colours, x1, A = Cross, half sun, gyro Z+, rumble on, sens 5, casual, leaderboard alerts
 }
 
 void settings_read(const char *path, struct settings *s) {
@@ -390,6 +392,7 @@ void settings_read(const char *path, struct settings *s) {
     if (!strcmp(k, "gyrosens") && v >= 1 && v <= 10) s->gyro_sens = v;
     if (!strcmp(k, "tiltsens") && v >= 1 && v <= 10) s->tilt_sens = v;
     if (!strcmp(k, "hardcore")) s->hardcore = !!v;
+    if (!strcmp(k, "lbpopups")) s->lb_popups = !!v;
   }
   if (f) fclose(f);
 }
@@ -397,8 +400,8 @@ void settings_read(const char *path, struct settings *s) {
 void settings_save(const char *path, const struct settings *s) {
   FILE *f = fopen(path, "w");
   if (!f) return;
-  fprintf(f, "size=%d\nlcd=%d\ncolor=%d\nturbo=%d\nswapab=%d\nsun=%d\ngyro=%d\nrumble=%d\ngyrosens=%d\ntiltsens=%d\nhardcore=%d\n", s->size,
-          s->lcd, s->color, s->turbo, s->swap_ab, s->sun, s->gyro, s->rumble, s->gyro_sens, s->tilt_sens, s->hardcore);
+  fprintf(f, "size=%d\nlcd=%d\ncolor=%d\nturbo=%d\nswapab=%d\nsun=%d\ngyro=%d\nrumble=%d\ngyrosens=%d\ntiltsens=%d\nhardcore=%d\nlbpopups=%d\n", s->size,
+          s->lcd, s->color, s->turbo, s->swap_ab, s->sun, s->gyro, s->rumble, s->gyro_sens, s->tilt_sens, s->hardcore, s->lb_popups);
   fclose(f);
   chmod(path, 0666);
 }

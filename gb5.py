@@ -212,10 +212,11 @@ SAVE_SIZES = {"sram": (32768,), "sram64": (65536,), "flash64": (65536,), "flash1
 
 
 SIZES = {"pixel": 0, "fill": 1, "16:9": 2}  # runtime/ps5/menu.h SIZE_*
+OPTION_KEYS = ("size", "a_button", "lcd", "gba_colors", "hardcore", "lb_popups")  # build()'s GB5 Menu options, from Settings or flags
 
 
 def build(rom_path, name=None, icon=None, hero=None, launch=None, music=None, eboot=None, out="out", tid=None, bios=None, rom_name=None, save=None,
-          size="16:9", a_button="cross", lcd=False, gba_colors=False, hardcore=False):
+          size="16:9", a_button="cross", lcd=False, gba_colors=False, hardcore=False, lb_popups=True):
     rom = read_rom(rom_path)
     if len(rom) < 0xC0 or len(rom) > 32 * 1024 * 1024 or rom[0xB2] != 0x96:
         raise ValueError("not a GBA ROM (bad size or header byte 0xB2 != 0x96)")
@@ -243,10 +244,11 @@ def build(rom_path, name=None, icon=None, hero=None, launch=None, music=None, eb
     # The game's starting options (the in-game OPTIONS menu still changes them; what the player sets wins).
     if size not in SIZES or a_button not in ("cross", "circle"):
         raise ValueError("size must be pixel, fill or 16:9; a_button cross or circle")
-    (d / "defaults.txt").write_text("size=%d\nlcd=%d\ncolor=%d\nswapab=%d\nhardcore=%d\n" % (SIZES[size], bool(lcd), bool(gba_colors),
-                                                                                         a_button == "cross", bool(hardcore)))
-    print("opciones: tamaño %s, A = %s, LCD %s, colores GBA %s, hardcore %s" % (size, "✕" if a_button == "cross" else "○",
-          "sí" if lcd else "no", "sí" if gba_colors else "no", "sí" if hardcore else "no"))
+    (d / "defaults.txt").write_text("size=%d\nlcd=%d\ncolor=%d\nswapab=%d\nhardcore=%d\nlbpopups=%d\n" % (
+        SIZES[size], bool(lcd), bool(gba_colors), a_button == "cross", bool(hardcore), bool(lb_popups)))
+    print("opciones: tamaño %s, A = %s, LCD %s, colores GBA %s, hardcore %s, avisos de clasificación %s" % (
+          size, "✕" if a_button == "cross" else "○", "sí" if lcd else "no", "sí" if gba_colors else "no", "sí" if hardcore else "no",
+          "sí" if lb_popups else "no"))
     if save:  # a .sav from another emulator or a cartridge dump (raw, the usual format)
         data = Path(save).read_bytes()
         if not data:
@@ -470,7 +472,7 @@ def smp(ftp, host, lines, elfldr_port=9021):
 
 
 SETTINGS = ROOT / "settings.json"  # the web UI's Settings tab; never in git (it holds the API key)
-SETTINGS_DEFAULT = {"sgdb_key": "", "size": "16:9", "a_button": "cross", "lcd": False, "gba_colors": False, "hardcore": False}
+SETTINGS_DEFAULT = {"sgdb_key": "", "size": "16:9", "a_button": "cross", "lcd": False, "gba_colors": False, "hardcore": False, "lb_popups": True}
 
 
 def load_settings():
@@ -512,7 +514,7 @@ def save_settings(new):
         if new["a_button"] not in ("cross", "circle"):
             raise ValueError("a_button: " + str(new["a_button"]))
         s["a_button"] = new["a_button"]
-    for k in ("lcd", "gba_colors", "hardcore"):
+    for k in ("lcd", "gba_colors", "hardcore", "lb_popups"):
         if new.get(k) is not None:
             s[k] = bool(new[k])
     if new.get("sgdb_key"):
@@ -643,7 +645,7 @@ class Web(http.server.BaseHTTPRequestHandler):
                 if "rom" not in files:
                     raise ValueError("pick a ROM")
                 s = load_settings()  # the GB5 Menu's starting options: from Settings
-                opts = {k: s[k] for k in ("size", "a_button", "lcd", "gba_colors", "hardcore")}
+                opts = {k: s[k] for k in OPTION_KEYS}
                 d = build(files.pop("rom"), name=req.get("name") or None,
                           rom_name=req["rom"].get("name"), **opts, **files)
             if self.path == "/api/deploy":
@@ -670,12 +672,13 @@ def main():
     for o in ("name", "icon", "hero", "launch", "music", "eboot", "title-id"):
         b.add_argument("--" + o)
     b.add_argument("--out", default="out")
-    # Unset: the web UI's Settings (settings.json), else 16:9, A on ✕, LCD, GBA colours and hardcore off.
+    # Unset: the web UI's Settings (settings.json), else 16:9, A on ✕, LCD, GBA colours and hardcore off, leaderboard alerts on.
     b.add_argument("--size", choices=list(SIZES), help="picture: pixel (integer x6), fill (fill height) or 16:9")
     b.add_argument("--a-button", choices=["cross", "circle"], help="GBA A on ✕ (cross) or ○ (circle)")
     b.add_argument("--lcd", action=argparse.BooleanOptionalAction, help="LCD grid")
     b.add_argument("--gba-colors", action=argparse.BooleanOptionalAction, help="GBA screen colours")
     b.add_argument("--hardcore", action=argparse.BooleanOptionalAction, help="start in RetroAchievements hardcore mode")
+    b.add_argument("--lb-popups", action=argparse.BooleanOptionalAction, help="RetroAchievements leaderboard notifications (default on)")
     b.add_argument("--save", help="import a .sav (raw, as mGBA/VBA/cartridge dumps); replaces the console's save on deploy")
     b.add_argument("--bios", help="your own GBA BIOS (16 KB) for the boot intro; default bios/gba_bios.bin if present, 'none' to skip")
     b.add_argument("--sgdb", action="store_true", help="name, icon and hero from SteamGridDB (what you pass wins)")
@@ -700,7 +703,7 @@ def main():
         with tempfile.TemporaryDirectory() as tmp:
             name, icon, hero = sgdb_auto(a.rom, tmp) if a.sgdb else (None, None, None)
             build(a.rom, a.name or name, a.icon or icon, a.hero or hero, a.launch, a.music, a.eboot, a.out, a.title_id, a.bios, save=a.save,
-                  **{k: s[k] if getattr(a, k) is None else getattr(a, k) for k in ("size", "a_button", "lcd", "gba_colors", "hardcore")})
+                  **{k: s[k] if getattr(a, k) is None else getattr(a, k) for k in OPTION_KEYS})
     elif a.cmd == "deploy":
         deploy(a.folder, a.host)
     elif a.cmd == "update-all":

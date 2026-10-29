@@ -7,6 +7,8 @@
 // Does nothing (but log) when RA Hub isn't running.
 // hardcore: start in RetroAchievements' hardcore mode (the caller blocks state loading, rewind, cheats).
 void ra_start(const void *machine, const uint8_t *rom, size_t len, int hardcore);
+// OPTIONS > LEADERBOARD ALERTS: show leaderboard started / failed / submitted / rank notifications.
+void ra_lb_popups(int on);
 // The player switched mode in OPTIONS. Turning it on: the caller resets the game (then ra_reset).
 void ra_set_hardcore(int on);
 // Once per emulated frame.

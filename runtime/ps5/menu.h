@@ -16,6 +16,7 @@ struct settings {
   int rumble;   // rumble carts: pass the motor to the DualSense
   int gyro_sens, tilt_sens;  // 1..10, 5 = mGBA's scale (x level / 5)
   int hardcore;  // RetroAchievements hardcore: no state loading, rewind or cheats; turning it on resets the game
+  int lb_popups;  // RetroAchievements leaderboard notifications (started, failed, submitted, rank); RA lets players turn them off
 };
 
 enum { MENU_NONE, MENU_CLOSED, MENU_RESET, MENU_QUIT, MENU_SAVE_STATE, MENU_LOAD_STATE, MENU_RECENTER, MENU_UPDATE_CHEATS, MENU_HARDCORE };

@@ -106,6 +106,27 @@ static int inside(int x, int y) {
   return dx * dx + dy * dy <= CORNER * CORNER;
 }
 
+// A decoded RGBA badge scaled to size x size at (x, y), over the pill's own colour (opaque result).
+static void put_badge(uint32_t *px, int stride, int x0, int y0, int size, const uint8_t *badge, int w, int h) {
+  for (int y = 0; y < size; y++)
+    for (int x = 0; x < size; x++) {
+      const uint8_t *s = badge + ((y * h / size) * w + x * w / size) * 4;
+      uint32_t a = s[3];
+      uint32_t r = (s[0] * a + 0x22 * (255 - a)) / 255, g = (s[1] * a + 0x22 * (255 - a)) / 255, b = (s[2] * a + 0x22 * (255 - a)) / 255;
+      px[(y0 + y) * stride + x0 + x] = 0xff000000u | b << 16 | g << 8 | r;
+    }
+}
+
+// Badge names are digits (or _lock): anything else is refused, so RA Hub's /badge is never asked for a path.
+static int badge_name(char *out, size_t n, const char *in) {
+  size_t i = 0;
+  for (; in && in[i] && i + 1 < n; i++)
+    if ((in[i] >= '0' && in[i] <= '9') || (in[i] >= 'a' && in[i] <= 'z') || in[i] == '_') out[i] = in[i];
+    else break;
+  out[i] = 0;
+  return in && i && !in[i];
+}
+
 // Like the PS5's trophy toast: a dark translucent pill, the badge on the left, the achievement's name
 // on the right. Alpha in the top byte: present() blends it over the game.
 uint32_t *card_compose(const char *title, unsigned points, const uint8_t *png, size_t png_len, int es) {
@@ -120,13 +141,7 @@ uint32_t *card_compose(const char *title, unsigned points, const uint8_t *png, s
   uint8_t *badge = png ? stbi_load_from_memory(png, (int)png_len, &w, &h, &n, 4) : NULL;
   const int B = 64, bx = 16, by = (CARD_H - B) / 2;  // RA badges are 64x64: drawn 1:1
   if (badge && w > 0 && h > 0) {
-    for (int y = 0; y < B; y++)
-      for (int x = 0; x < B; x++) {
-        const uint8_t *s = badge + ((y * h / B) * w + x * w / B) * 4;
-        uint32_t a = s[3];  // over the pill's own colour
-        uint32_t r = (s[0] * a + 0x22 * (255 - a)) / 255, g = (s[1] * a + 0x22 * (255 - a)) / 255, b = (s[2] * a + 0x22 * (255 - a)) / 255;
-        px[(by + y) * CARD_W + bx + x] = 0xff000000u | b << 16 | g << 8 | r;
-      }
+    put_badge(px, CARD_W, bx, by, B, badge, w, h);
   } else {
     fill(&cv, bx, by, B, B, EDGE);  // no badge (offline / RA Hub without /badge): a gold square
   }
@@ -152,9 +167,58 @@ const uint32_t *card_sun(int level, int es) {
   return px;
 }
 
+// ---------------- small badges for the indicators ----------------
+// Fetched once per name on a thread, kept decoded at MINI x MINI. state: 0 free, 1 loading, 2 ready, 3 none.
+#define MINI 32
+#define MINIS 16
+static struct mini {
+  char name[32];
+  uint32_t px[MINI * MINI];
+  atomic_int state;
+} minis[MINIS];
+static atomic_uint mini_gen;
+
+static void *mini_main(void *arg) {
+  struct mini *m = arg;
+  char path[64];
+  size_t len = 0;
+  int w = 0, h = 0, n;
+  snprintf(path, sizeof path, "/badge?u=%s", m->name);
+  char *png = ra_hub_get(path, &len);
+  uint8_t *badge = png ? stbi_load_from_memory((const uint8_t *)png, (int)len, &w, &h, &n, 4) : NULL;
+  if (badge && w > 0 && h > 0) put_badge(m->px, MINI, 0, 0, MINI, badge, w, h);
+  atomic_store(&m->state, badge && w > 0 && h > 0 ? 2 : 3);
+  atomic_fetch_add(&mini_gen, 1);
+  stbi_image_free(badge);
+  free(png);
+  return NULL;
+}
+
+// Main thread. The badge's pixels when ready, else NULL (and its download starts).
+static const uint32_t *mini_badge(const char *name) {
+  static unsigned next;
+  char clean[32];
+  if (!badge_name(clean, sizeof clean, name)) return NULL;
+  for (int i = 0; i < MINIS; i++)
+    if (atomic_load(&minis[i].state) && !strcmp(minis[i].name, clean)) return atomic_load(&minis[i].state) == 2 ? minis[i].px : NULL;
+  for (int tries = 0; tries < MINIS; tries++) {  // ponytail: round robin over the 16 slots, skipping downloads in flight
+    struct mini *m = &minis[next++ % MINIS];
+    if (atomic_load(&m->state) == 1) continue;
+    pthread_t t;
+    snprintf(m->name, sizeof m->name, "%s", clean);
+    atomic_store(&m->state, 1);
+    if (pthread_create(&t, NULL, mini_main, m)) atomic_store(&m->state, 3);
+    else pthread_detach(t);
+    break;
+  }
+  return NULL;
+}
+
+unsigned card_badges_loaded(void) { return atomic_load(&mini_gen); }
+
 #define HUD_ROW 40
 #define HUD_GAP 6
-const uint32_t *card_hud(const char *const *lines, int n, int *h) {
+const uint32_t *card_hud(const char *const *lines, const char *const *badges, int n, int *h) {
   static uint32_t px[CARD_W * 13 * (HUD_ROW + HUD_GAP)];
   struct canvas cv = {px, CARD_W, 0};
   if (n > 13) n = 13;
@@ -164,7 +228,16 @@ const uint32_t *card_hud(const char *const *lines, int n, int *h) {
     int y = i * (HUD_ROW + HUD_GAP);
     fill(&cv, 0, y, CARD_W, HUD_ROW, PILL);
     fill(&cv, 0, y, 4, HUD_ROW, EDGE);
-    wrapped(&cv, 16, y + 10, 2, CARD_W - 32, 1, lines[i], WHITE);
+    const uint32_t *b = badges[i] ? mini_badge(badges[i]) : NULL;
+    int tx = 16;
+    if (badges[i]) {  // the achievement's badge (a placeholder square until it arrives)
+      tx = 12 + MINI + 10;
+      if (b)
+        for (int r = 0; r < MINI; r++) memcpy(px + (y + 4 + r) * CARD_W + 12, b + r * MINI, MINI * sizeof *b);
+      else
+        fill(&cv, 12, y + 4, MINI, MINI, 0xff3a3028u);
+    }
+    wrapped(&cv, tx, y + 10, 2, CARD_W - tx - 16, 1, lines[i], WHITE);
   }
   return px;
 }
@@ -204,9 +277,7 @@ void card_unlock(const char *title, unsigned points, const char *badge, int es) 
   if (!j) return;
   lang_es = es;
   snprintf(j->title, sizeof j->title, "%s", title ? title : "");
-  for (size_t i = 0; badge && badge[i] && i + 1 < sizeof j->badge; i++)  // badge names are digits (or _lock)
-    if ((badge[i] >= '0' && badge[i] <= '9') || (badge[i] >= 'a' && badge[i] <= 'z') || badge[i] == '_') j->badge[i] = badge[i];
-    else { j->badge[0] = 0; break; }
+  if (!badge_name(j->badge, sizeof j->badge, badge)) j->badge[0] = 0;
   j->points = points;
   if (pthread_create(&t, NULL, job_main, j)) { free(j); return; }
   pthread_detach(t);

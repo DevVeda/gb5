@@ -68,7 +68,7 @@ Not in git: `out/` (built titles), `ROMS/`, `bios/`, `cheatdb/` (cache), `settin
   "226" to DELE; that is accepted.
 - **Options precedence:** web Settings (`settings.json`) or CLI flags → `defaults.txt` in the title →
   `settings.txt` written by the in-game menu, which always wins.
-- **Settings tab:** GB5 Menu start options (size, A button, LCD, GBA colours, hardcore), SteamGridDB key
+- **Settings tab:** GB5 Menu start options (size, A button, LCD, GBA colours, hardcore, leaderboard alerts), SteamGridDB key
   (never sent back to the page, only `sgdb_key_set`), GBA BIOS (saved as `bios/gba_bios.bin`, 16 KB,
   md5 check for the official one).
 - **Web build:** "Create and download .zip" builds, then the browser downloads `<name>_<ID>.zip` from
@@ -108,7 +108,8 @@ Not in git: `out/` (built titles), `ROMS/`, `bios/`, `cheatdb/` (cache), `settin
   licences with upstream links, "everything is free", in-game indicators, leaderboards, offline queue.
 - **In-game indicators:** `ra_hud()` (ra.c state) → `card_hud()` (card.c pixels) → drawn bottom right in
   `present()`: leaderboard trackers, challenges, measured progress (rcheevos hides it after 2 s).
-  Leaderboard started/failed/submitted/rank are console notifications. Leaderboards run in hardcore only.
+  Leaderboard started/failed/submitted/rank are console notifications, off with `lbpopups=0` (Settings
+  `lb_popups`, `--no-lb-popups`, OPTIONS > LEADERBOARD ALERTS; RA allows it). Leaderboards run in hardcore only.
 - **Offline:** `call_main` caches `achievementsets` / `startsession` answers in `ra_<r>_<user>.json` and serves
   them (plus a login2 built from RA Hub's session) when RA doesn't answer. Unanswered calls go to rcheevos as
   retryable (RA Hub's 502 JSON would read as success). Awards and leaderboard entries wait in
