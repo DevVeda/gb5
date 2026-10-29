@@ -12,7 +12,7 @@ import argparse, base64, ftplib, hashlib, http.server, io, json, os, re, shutil,
 from pathlib import Path
 
 # Packaged (PyInstaller, see .github/workflows/release.yml): read-only files come from the bundle (RES),
-# the user's files (.env, bios/, cheatdb/, out/) live next to the executable (ROOT).
+# the user's files (settings.json, bios/, cheatdb/, out/) live next to the executable (ROOT).
 FROZEN = getattr(sys, "frozen", False)
 ROOT = Path(sys.executable).parent if FROZEN else Path(__file__).resolve().parent
 RES = Path(getattr(sys, "_MEIPASS", ROOT))
@@ -468,18 +468,59 @@ def smp(ftp, host, lines, elfldr_port=9021):
     print("register.elf sent, but it wrote no log: check that elfldr runs payloads")
 
 
-def env(name):
-    """os.environ first, then KEY=VALUE lines from ROOT/.env (never printed)."""
-    if os.environ.get(name):
-        return os.environ[name]
+SETTINGS = ROOT / "settings.json"  # the web UI's Settings tab; never in git (it holds the API key)
+SETTINGS_DEFAULT = {"sgdb_key": "", "size": "16:9", "a_button": "cross", "lcd": False, "gba_colors": False}
+
+
+def load_settings():
     try:
-        for line in (ROOT / ".env").read_text().splitlines():
-            k, _, v = line.partition("=")
-            if k.strip() == name:
-                return v.strip().strip("'\"")
-    except OSError:
-        pass
-    return None
+        saved = json.loads(SETTINGS.read_text())
+    except (OSError, ValueError):
+        saved = {}
+    return {k: saved.get(k, v) for k, v in SETTINGS_DEFAULT.items()}
+
+
+def bios_info():
+    """The BIOS every game gets (bios/gba_bios.bin): whether there is one and whether it's the official one."""
+    data = DEFAULT_BIOS.read_bytes() if DEFAULT_BIOS.exists() else None
+    return {"bios_set": data is not None, "bios_official": data is not None and hashlib.md5(data).hexdigest() == GBA_BIOS_MD5}
+
+
+def settings_reply(s):
+    """What the page gets: never the key itself, only whether there is one."""
+    return dict(s, sgdb_key="", sgdb_key_set=bool(s["sgdb_key"]), **bios_info())
+
+
+def save_settings(new):
+    """Merge the known keys of new into settings.json, checked. An empty sgdb_key keeps the saved one.
+    bios (base64) replaces bios/gba_bios.bin, bios_remove deletes it."""
+    if new.get("bios"):
+        data = base64.b64decode(new["bios"])
+        if len(data) != 16384:
+            raise ValueError("a GBA BIOS is 16384 bytes, this is %d" % len(data))
+        DEFAULT_BIOS.parent.mkdir(exist_ok=True)
+        DEFAULT_BIOS.write_bytes(data)
+    elif new.get("bios_remove"):
+        DEFAULT_BIOS.unlink(missing_ok=True)
+    s = load_settings()
+    if new.get("size") is not None:
+        if new["size"] not in SIZES:
+            raise ValueError("size: " + str(new["size"]))
+        s["size"] = new["size"]
+    if new.get("a_button") is not None:
+        if new["a_button"] not in ("cross", "circle"):
+            raise ValueError("a_button: " + str(new["a_button"]))
+        s["a_button"] = new["a_button"]
+    for k in ("lcd", "gba_colors"):
+        if new.get(k) is not None:
+            s[k] = bool(new[k])
+    if new.get("sgdb_key"):
+        key = str(new["sgdb_key"]).strip()
+        if not re.fullmatch(r"[0-9A-Za-z]{16,128}", key):
+            raise ValueError("that doesn't look like a SteamGridDB API key")
+        s["sgdb_key"] = key
+    SETTINGS.write_text(json.dumps(s, indent=2))
+    return s
 
 
 SGDB = "https://www.steamgriddb.com/api/v2"
@@ -487,9 +528,9 @@ SGDB_CDN = ("cdn2.steamgriddb.com", "cdn.steamgriddb.com")
 
 
 def sgdb(path):
-    key = env("STEAMGRIDDBAPI")
+    key = load_settings()["sgdb_key"]
     if not key:
-        raise ValueError("STEAMGRIDDBAPI missing in .env")
+        raise ValueError("no SteamGridDB API key: add it in Settings")
     req = urllib.request.Request(SGDB + path, headers={"Authorization": "Bearer " + key, "User-Agent": "gb5"})
     with urllib.request.urlopen(req, timeout=15) as r:
         return json.load(r).get("data") or []
@@ -523,6 +564,13 @@ def sgdb_auto(rom_path, tmp):
     return games[0]["name"], art.get("icon"), art.get("hero")
 
 
+def zip_name(folder):
+    """'<home screen name>_<TITLEID>.zip', minus the characters file systems refuse."""
+    p = json.loads((folder / "sce_sys" / "param.json").read_text(encoding="utf-8"))["localizedParameters"]
+    name = re.sub(r'[\\/:*?"<>|]+', "", p[p["defaultLanguage"]]["titleName"]).strip()
+    return "%s_%s.zip" % (name, folder.name)
+
+
 class Web(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
@@ -532,7 +580,21 @@ class Web(http.server.BaseHTTPRequestHandler):
                 return self.reply(200, (RES / "web" / "index.html").read_bytes(), "text/html; charset=utf-8")
             if u.path == "/logo.svg":
                 return self.reply(200, (RES / "assets" / "logo.svg").read_bytes(), "image/svg+xml")
-            if u.path == "/api/sgdb/search":
+            if u.path == "/api/zip":  # a built folder as <ID>.zip, to copy to the console by hand
+                tid = q["id"][0]
+                folder = Path("out") / tid
+                if not re.fullmatch(r"[A-Z]{4}\d{5}", tid) or not folder.is_dir():
+                    raise ValueError("no built folder " + tid)
+                buf = io.BytesIO()
+                with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+                    for f in sorted(folder.rglob("*")):
+                        if f.is_file():
+                            z.write(f, Path(tid) / f.relative_to(folder))
+                return self.reply(200, buf.getvalue(), "application/zip", {"Content-Disposition": "attachment; filename*=UTF-8''" +
+                                  urllib.parse.quote(zip_name(folder))})
+            if u.path == "/api/settings":
+                data = settings_reply(load_settings())
+            elif u.path == "/api/sgdb/search":
                 data = sgdb("/search/autocomplete/" + urllib.parse.quote(q["q"][0], safe=""))
             elif u.path == "/api/cheats":  # the cheats a ROM (by file name and header) would get
                 rom_hdr = base64.b64decode(q["hdr"][0]) if q.get("hdr") else None  # a .zip: the page can't read it
@@ -557,13 +619,19 @@ class Web(http.server.BaseHTTPRequestHandler):
                 return self.reply(200, json.dumps({"ok": True, "data": data}).encode(), "application/json")
             except (Exception, SystemExit) as e:
                 return self.reply(400, json.dumps({"ok": False, "error": str(e)}).encode(), "application/json")
+        if self.path == "/api/settings":
+            try:
+                s = save_settings(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+                return self.reply(200, json.dumps({"ok": True, "data": settings_reply(s)}).encode(), "application/json")
+            except (Exception, SystemExit) as e:
+                return self.reply(400, json.dumps({"ok": False, "error": str(e)}).encode(), "application/json")
         if self.path not in ("/api/build", "/api/deploy"):
             return self.send_error(404)
         try:
             req = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             with tempfile.TemporaryDirectory() as tmp:
                 files = {}
-                for k in ("rom", "icon", "hero", "launch", "music", "bios", "save"):
+                for k in ("rom", "icon", "hero", "launch", "music", "save"):
                     if req.get(k):  # {"name": ..., "data": base64} or {"url": SteamGridDB CDN}
                         src = req[k].get("name") or urllib.parse.urlparse(req[k].get("url", "")).path
                         files[k] = Path(tmp) / (k + Path(src).suffix)
@@ -573,18 +641,21 @@ class Web(http.server.BaseHTTPRequestHandler):
                             files[k].write_bytes(base64.b64decode(req[k]["data"]))
                 if "rom" not in files:
                     raise ValueError("pick a ROM")
-                d = build(files.pop("rom"), name=req.get("name") or None, eboot=req.get("eboot") or None,
-                          rom_name=req["rom"].get("name"), size=req.get("size") or "16:9", a_button=req.get("a_button") or "cross",
-                          lcd=bool(req.get("lcd")), gba_colors=bool(req.get("gba_colors")), **files)
+                s = load_settings()  # the GB5 Menu's starting options: from Settings
+                opts = {k: s[k] for k in ("size", "a_button", "lcd", "gba_colors")}
+                d = build(files.pop("rom"), name=req.get("name") or None,
+                          rom_name=req["rom"].get("name"), **opts, **files)
             if self.path == "/api/deploy":
                 deploy(d, req["host"])
-            self.reply(200, json.dumps({"ok": True, "folder": str(d.resolve())}).encode(), "application/json")
+            self.reply(200, json.dumps({"ok": True, "folder": str(d.resolve()), "id": d.name, "zip": zip_name(d)}).encode(), "application/json")
         except Exception as e:  # report to the page, keep serving
             self.reply(400, json.dumps({"ok": False, "error": str(e)}).encode(), "application/json")
 
-    def reply(self, code, body, ctype):
+    def reply(self, code, body, ctype, headers={}):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
+        for k, v in headers.items():
+            self.send_header(k, v)
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -598,10 +669,11 @@ def main():
     for o in ("name", "icon", "hero", "launch", "music", "eboot", "title-id"):
         b.add_argument("--" + o)
     b.add_argument("--out", default="out")
-    b.add_argument("--size", choices=list(SIZES), default="16:9", help="picture: pixel (x6), fill (fill height) or 16:9 (default)")
-    b.add_argument("--a-button", choices=["cross", "circle"], default="cross", help="GBA A on Cross (default) or Circle")
-    b.add_argument("--lcd", action="store_true", help="LCD grid on")
-    b.add_argument("--gba-colors", action="store_true", help="GBA screen colours on")
+    # Unset: the web UI's Settings (settings.json), else 16:9, A on Cross, LCD and GBA colours off.
+    b.add_argument("--size", choices=list(SIZES), help="picture: pixel (x6), fill (fill height) or 16:9")
+    b.add_argument("--a-button", choices=["cross", "circle"], help="GBA A on Cross or Circle")
+    b.add_argument("--lcd", action=argparse.BooleanOptionalAction, help="LCD grid")
+    b.add_argument("--gba-colors", action=argparse.BooleanOptionalAction, help="GBA screen colours")
     b.add_argument("--save", help="import a .sav (raw, as mGBA/VBA/cartridge dumps); replaces the console's save on deploy")
     b.add_argument("--bios", help="your own GBA BIOS (16 KB) for the boot intro; default bios/gba_bios.bin if present, 'none' to skip")
     b.add_argument("--sgdb", action="store_true", help="name, icon and hero from SteamGridDB (what you pass wins)")
@@ -622,10 +694,11 @@ def main():
         os.chdir(ROOT)  # out/ next to the executable, not wherever the OS started it
         a.cmd, a.port = "serve", 8080
     if a.cmd == "build":
+        s = load_settings()
         with tempfile.TemporaryDirectory() as tmp:
             name, icon, hero = sgdb_auto(a.rom, tmp) if a.sgdb else (None, None, None)
             build(a.rom, a.name or name, a.icon or icon, a.hero or hero, a.launch, a.music, a.eboot, a.out, a.title_id, a.bios, save=a.save,
-                  size=a.size, a_button=a.a_button, lcd=a.lcd, gba_colors=a.gba_colors)
+                  **{k: s[k] if getattr(a, k) is None else getattr(a, k) for k in ("size", "a_button", "lcd", "gba_colors")})
     elif a.cmd == "deploy":
         deploy(a.folder, a.host)
     elif a.cmd == "update-all":

@@ -23,6 +23,7 @@
   h1, h2 { font-size:18px; margin:0; }
   h2 { font-size:15px; }
   .hint { color:var(--dim); font-size:12px; margin:0; }
+  a { color:#8fb0ff; }
   .src { font-size:12px; color:var(--dim); }
 
   /* PS5 home mock: 16:9, everything in container units so it scales */
@@ -53,15 +54,27 @@
   label.check input { width:auto; }
   #cheats ul { margin:4px 0 0; padding-left:18px; max-height:180px; overflow:auto; }
   #cheats li.off { opacity:.45; }
+  .top { max-width:1200px; margin:0 auto; padding:16px 16px 0; display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
+  .top img { width:32px; height:32px; border-radius:6px; }
+  .nav { display:flex; gap:4px; flex:1; }
+  .nav button { background:none; color:var(--dim); padding:8px 14px; }
+  .nav button.on { background:var(--panel); color:var(--text); }
+  #settings { max-width:640px; margin:0 auto; padding:16px; }
+  #settings form { gap:16px; }
+  [hidden] { display:none !important; }
   .lang { display:flex; gap:6px; align-items:center; font-size:13px; color:var(--dim); }
   .lang button { background:none; border:0; padding:0; color:var(--dim); cursor:pointer; font:inherit; text-decoration:underline; }
   .lang button.on { color:var(--text); text-decoration:none; font-weight:600; }
 </style>
 </head>
 <body>
-<main>
+<header class="top">
+  <img src="/logo.svg" alt="">
+  <nav class="nav"><button type="button" data-tab="build" data-t="nav_build"></button><button type="button" data-tab="settings" data-t="nav_settings"></button></nav>
+  <div class="lang"><button type="button" data-lang="en">English</button> / <button type="button" data-lang="es">Español</button></div>
+</header>
+<main id="build">
   <form id="f">
-    <div class="lang"><button type="button" data-lang="en">English</button> / <button type="button" data-lang="es">Español</button></div>
     <h1 data-t="title"></h1>
     <label><span data-t="rom"></span> <input type="file" name="rom" accept=".gba,.agb,.zip" required></label>
     <div id="cheats" class="hint"></div>
@@ -75,16 +88,7 @@
     <p class="hint" data-t="music_hint"></p>
     <label><span data-t="save"></span> <input type="file" name="save" accept=".sav,.srm"></label>
     <p class="hint" data-t="save_hint"></p>
-    <label><span data-t="bios"></span> <input type="file" name="bios" accept=".bin,.rom,.gba"></label>
-    <p class="hint" data-t="bios_hint"></p>
-    <fieldset class="opts">
-      <legend data-t="opts"></legend>
-      <label><span data-t="size"></span> <select name="size"><option value="16:9" selected data-t="size_169"></option><option value="fill" data-t="size_fill"></option><option value="pixel" data-t="size_pixel"></option></select></label>
-      <label><span data-t="abtn"></span> <select name="a_button"><option value="cross" selected data-t="cross"></option><option value="circle" data-t="circle"></option></select></label>
-      <label class="check"><input type="checkbox" name="lcd"> <span data-t="lcd"></span></label>
-      <label class="check"><input type="checkbox" name="gba_colors"> <span data-t="colors"></span></label>
-    </fieldset>
-    <label><span data-t="eboot"></span> <input type="text" name="eboot" data-tp="eboot_ph"></label>
+    <p class="hint" data-t="opts_where"></p>
     <button type="submit" data-act="build" data-t="build"></button>
     <label><span data-t="host"></span> <input type="text" name="host" placeholder="192.168.x.x"></label>
     <button type="submit" data-act="deploy" class="alt" data-t="deploy"></button>
@@ -119,18 +123,50 @@
     <p class="hint" data-t="approx"></p>
   </section>
 </main>
+
+<div id="settings" hidden>
+  <form id="s">
+    <h1 data-t="nav_settings"></h1>
+    <fieldset class="opts">
+      <legend data-t="opts"></legend>
+      <label><span data-t="size"></span> <select name="size"><option value="16:9" data-t="size_169"></option><option value="fill" data-t="size_fill"></option><option value="pixel" data-t="size_pixel"></option></select></label>
+      <label><span data-t="abtn"></span> <select name="a_button"><option value="cross" data-t="cross"></option><option value="circle" data-t="circle"></option></select></label>
+      <label class="check"><input type="checkbox" name="lcd"> <span data-t="lcd"></span></label>
+      <label class="check"><input type="checkbox" name="gba_colors"> <span data-t="colors"></span></label>
+    </fieldset>
+    <fieldset class="opts">
+      <legend>SteamGridDB</legend>
+      <label><span data-t="key"></span> <input type="password" name="sgdb_key" autocomplete="off" spellcheck="false"></label>
+      <p class="hint"><span data-t="key_hint"></span> <a href="https://www.steamgriddb.com/profile/preferences/api" target="_blank" rel="noopener">steamgriddb.com/profile/preferences/api</a></p>
+    </fieldset>
+    <fieldset class="opts">
+      <legend data-t="bios_legend"></legend>
+      <p class="hint" id="biosState"></p>
+      <label><span data-t="bios"></span> <input type="file" name="bios" accept=".bin,.rom,.gba"></label>
+      <p class="hint" data-t="bios_hint"></p>
+      <button type="button" class="alt" id="biosRemove" data-t="bios_remove" hidden></button>
+    </fieldset>
+    <button type="submit" data-t="save_btn"></button>
+    <div id="sMsg" class="hint"></div>
+  </form>
+</div>
 <script>
 const T = {
   es: {
+    nav_build: 'Crear', nav_settings: 'Ajustes', opts_where: 'Las opciones del GB5 Menu (tamaño, botón A…), la BIOS y la clave de SteamGridDB están en Ajustes.',
+    key: 'API key de SteamGridDB', key_hint: 'Para buscar iconos y heroes. Se consigue gratis con una cuenta en', key_set: 'guardada (escribe otra para cambiarla)',
+    save_btn: 'Guardar', saved: 'Guardado', opts: 'Opciones al iniciar cada juego (en el juego se cambian con L2+R2)',
     title: 'GB5', rom: 'ROM (.gba o .zip)', name: 'Nombre en el menú', name_ph: 'sale del nombre del archivo si lo dejas vacío',
     icon: 'Icono propio (cuadrado, sale a 512×512)', hero: 'Hero propio, fondo al seleccionar (16:9; un banner se recorta al centro)',
     launch: 'Fondo al lanzar (opcional, si no usa el hero)', music: 'Música (.at9, 48 kHz, máx 2 MiB)',
     music_hint: 'El navegador no puede reproducir AT9; sólo se valida al construir.',
     save: 'Partida guardada (.sav, opcional)', save_hint: 'De otro emulador (mGBA, VBA…) o de tu cartucho. Al subir a la PS5 reemplaza la partida que tenga allí.',
-    bios: 'BIOS de GBA (opcional: tu propio volcado, 16 KB)', bios_hint: 'Con BIOS, el juego arranca con la intro de GBA. Si la dejas vacía se usa bios/gba_bios.bin si existe.',
-    opts: 'Opciones de inicio (en el juego se cambian con L2+R2)', size: 'Tamaño', size_169: '16:9 (pantalla completa)', size_fill: 'Llenar alto',
+    bios: 'Tu propio volcado (16 KB)', bios_hint: 'Opcional. Con BIOS, los juegos arrancan con la intro de GBA; se usa en todos los que construyas.',
+    bios_legend: 'BIOS de GBA', bios_none: 'Sin BIOS: los juegos arrancan directo.', bios_ok: 'BIOS guardada (la oficial de GBA).',
+    bios_other: 'BIOS guardada, pero no es la oficial de GBA: puede que no arranque.', bios_remove: 'Quitar BIOS',
+    size: 'Tamaño', size_169: '16:9 (pantalla completa)', size_fill: 'Llenar alto',
     size_pixel: 'Píxel perfecto (×6)', abtn: 'Botón A', cross: 'Cruz', circle: 'Círculo', lcd: 'Filtro LCD', colors: 'Colores de GBA',
-    eboot: 'eboot.bin del runtime (ruta en este equipo, opcional)', eboot_ph: '/ruta/eboot.bin', build: 'Construir carpeta', host: 'IP de la PS5',
+    build: 'Construir carpeta', host: 'IP de la PS5',
     deploy: 'Construir y subir a la PS5', update_all: 'Actualizar todos los juegos en la PS5',
     update_hint: 'Lleva el runtime más reciente (runtime/build.sh) a todos los juegos instalados en la PS5. Un juego abierto en la consola se salta.',
     tab_games: 'Juegos', tab_media: 'Multimedia', play: 'Jugar', your_game: 'Tu juego', sgdb: 'Buscar arte en SteamGridDB', q_ph: 'nombre del juego',
@@ -145,15 +181,20 @@ const T = {
     building_up: 'Construyendo y subiendo…', building: 'Construyendo (el BC7 4K tarda unos segundos)…', done: 'Listo: ',
   },
   en: {
+    nav_build: 'Create', nav_settings: 'Settings', opts_where: 'The GB5 Menu options (size, A button…), the BIOS and the SteamGridDB key are in Settings.',
+    key: 'SteamGridDB API key', key_hint: 'For finding icons and heroes. Free with an account at', key_set: 'saved (type another to change it)',
+    save_btn: 'Save', saved: 'Saved', opts: 'Options every game starts with (in game: L2+R2)',
     title: 'GB5', rom: 'ROM (.gba or .zip)', name: 'Name on the home screen', name_ph: 'taken from the file name if left empty',
     icon: 'Your own icon (square, becomes 512×512)', hero: 'Your own hero, background when selected (16:9; a banner is centre-cropped)',
     launch: 'Launch background (optional, else the hero)', music: 'Music (.at9, 48 kHz, 2 MiB max)',
     music_hint: "Browsers can't play AT9; it's only checked when building.",
     save: 'Save file (.sav, optional)', save_hint: 'From another emulator (mGBA, VBA…) or your cartridge. Uploading to the PS5 replaces the save there.',
-    bios: 'GBA BIOS (optional: your own dump, 16 KB)', bios_hint: 'With a BIOS the game boots with the GBA intro. Left empty, bios/gba_bios.bin is used if it exists.',
-    opts: 'Starting options (in game: L2+R2)', size: 'Size', size_169: '16:9 (full screen)', size_fill: 'Fill height',
+    bios: 'Your own dump (16 KB)', bios_hint: 'Optional. With a BIOS, games boot with the GBA intro; every game you build gets it.',
+    bios_legend: 'GBA BIOS', bios_none: 'No BIOS: games boot straight in.', bios_ok: 'BIOS saved (the official GBA one).',
+    bios_other: "BIOS saved, but it isn't the official GBA one: it may not boot.", bios_remove: 'Remove BIOS',
+    size: 'Size', size_169: '16:9 (full screen)', size_fill: 'Fill height',
     size_pixel: 'Pixel perfect (×6)', abtn: 'A button', cross: 'Cross', circle: 'Circle', lcd: 'LCD grid', colors: 'GBA colours',
-    eboot: 'Runtime eboot.bin (path on this computer, optional)', eboot_ph: '/path/eboot.bin', build: 'Build folder', host: 'PS5 IP',
+    build: 'Build folder', host: 'PS5 IP',
     deploy: 'Build and upload to the PS5', update_all: 'Update all games on the PS5',
     update_hint: 'Brings the latest runtime (runtime/build.sh) to every game installed on the PS5. A game open on the console is skipped.',
     tab_games: 'Games', tab_media: 'Media', play: 'Play', your_game: 'Your game', sgdb: 'Find artwork on SteamGridDB', q_ph: 'game name',
@@ -184,6 +225,8 @@ function setLang(l) {
   for (const el of document.querySelectorAll('[data-tp]')) el.placeholder = t(el.dataset.tp);
   for (const b of document.querySelectorAll('.lang button')) b.classList.toggle('on', b.dataset.lang === l);
   if (romName) f.name.placeholder = romName;
+  if (typeof keySet !== 'undefined' && keySet) $('s').sgdb_key.placeholder = t('key_set');
+  if (typeof bios !== 'undefined') drawBios();
   render();
   updateName();
   if (lastCheats) drawCheats(lastCheats);
@@ -350,14 +393,20 @@ f.addEventListener('submit', async e => {
   btns.forEach(b => b.disabled = true);
   msg.className = ''; msg.textContent = act === 'deploy' ? t('building_up') : t('building');
   try {
-    const body = { name: f.name.value || romName, eboot: f.eboot.value, host: f.host.value,
-                   size: f.size.value, a_button: f.a_button.value, lcd: f.lcd.checked, gba_colors: f.gba_colors.checked };
-    for (const n of ['rom', 'music', 'bios', 'save']) if (f[n].files[0]) body[n] = await b64(f[n].files[0]);
+    const body = { name: f.name.value || romName, host: f.host.value };
+    for (const n of ['rom', 'music', 'save']) if (f[n].files[0]) body[n] = await b64(f[n].files[0]);
     for (const k of ['icon', 'hero', 'launch']) if (art[k]) body[k] = await art[k].send();
     const r = await fetch('/api/' + act, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const j = await r.json();
     msg.className = j.ok ? '' : 'err';
     msg.textContent = j.ok ? t('done') + j.folder : j.error;
+    if (j.ok) {
+      const a = document.createElement('a');
+      a.href = '/api/zip?id=' + encodeURIComponent(j.id);
+      a.textContent = j.zip;
+      a.download = j.zip;
+      msg.append(' · ', a);
+    }
   } catch (err) {
     msg.className = 'err'; msg.textContent = String(err);
   } finally {
@@ -365,6 +414,56 @@ f.addEventListener('submit', async e => {
   }
 });
 
+// Tabs: Create and Settings
+function showTab(name) {
+  $('build').hidden = name !== 'build';
+  $('settings').hidden = name !== 'settings';
+  for (const b of document.querySelectorAll('.nav button')) b.classList.toggle('on', b.dataset.tab === name);
+  try { localStorage.setItem('tab', name); } catch { /* not kept */ }
+}
+for (const b of document.querySelectorAll('.nav button')) b.onclick = () => showTab(b.dataset.tab);
+
+// Settings (settings.json beside gb5): the GB5 Menu's starting options and the SteamGridDB key.
+// The server never sends the key back, only whether one is saved.
+const s = $('s');
+let keySet = false;
+function fillSettings(d) {
+  s.size.value = d.size; s.a_button.value = d.a_button; s.lcd.checked = d.lcd; s.gba_colors.checked = d.gba_colors;
+  keySet = d.sgdb_key_set;
+  s.sgdb_key.value = '';
+  s.sgdb_key.placeholder = keySet ? t('key_set') : '';
+  bios = d;
+  s.bios.value = '';
+  drawBios();
+}
+let bios = null;
+function drawBios() {
+  if (!bios) return;
+  $('biosState').textContent = t(!bios.bios_set ? 'bios_none' : bios.bios_official ? 'bios_ok' : 'bios_other');
+  $('biosRemove').hidden = !bios.bios_set;
+}
+async function postSettings(body) {
+  const m = $('sMsg');
+  try {
+    const r = await fetch('/api/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error);
+    fillSettings(j.data);
+    m.className = 'hint'; m.textContent = t('saved');
+  } catch (err) { m.className = 'err'; m.textContent = String(err.message || err); }
+}
+$('biosRemove').onclick = () => postSettings({ bios_remove: true });
+s.addEventListener('submit', async e => {
+  e.preventDefault();
+  const body = { size: s.size.value, a_button: s.a_button.value, lcd: s.lcd.checked, gba_colors: s.gba_colors.checked, sgdb_key: s.sgdb_key.value.trim() };
+  if (s.bios.files[0]) body.bios = (await b64(s.bios.files[0])).data;
+  postSettings(body);
+});
+api('/api/settings').then(fillSettings).catch(err => { $('sMsg').className = 'err'; $('sMsg').textContent = String(err.message || err); });
+
+let tab = 'build';
+try { tab = localStorage.getItem('tab') || 'build'; } catch { /* first tab */ }
+showTab(tab);
 setLang(lang);
 </script>
 </body>

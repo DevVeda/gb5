@@ -37,7 +37,8 @@ Use it from the terminal (`gb5.py`) or from a local web page that previews the P
    - macOS: the first time, right-click → Open (the app isn't signed). If it still refuses:
      `xattr -d com.apple.quarantine gb5`.
    - Windows: SmartScreen may warn; "More info" → "Run anyway".
-3. Optional, next to `gb5`: `bios/gba_bios.bin` (your BIOS) and `.env` with `STEAMGRIDDBAPI=<your key>`.
+3. Optional, in the **Settings** tab: your SteamGridDB API key (for artwork search) and your GBA BIOS
+   (for the boot intro).
 
 The same file works in a terminal: `./gb5 build ROM --sgdb`, `./gb5 deploy out/<ID> --host <PS5 IP>`…
 The requirements below are only for building GB5 yourself.
@@ -54,7 +55,7 @@ The requirements below are only for building GB5 yourself.
 | Docker with the `ps5title` image (Arch amd64 + clang 18); on WSL, Docker Desktop with WSL integration | linking and signing `eboot.bin` |
 | [PS5_Vulkan + PS5_VulkanTemplate](https://github.com/mihawk-99/PS5_Vulkan), built (default `~/ps5gpu`) | the title's CRT, platform layer, `ps5-native-tool` and `libc.prx` |
 | [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk) + LLVM 18 (`brew install llvm@18` [`sudo apt install llvm-18 clang-18 lld-18`]) | the payload that registers titles |
-| `.env` with `STEAMGRIDDBAPI=<your key>` | artwork search on SteamGridDB (optional) |
+| A SteamGridDB API key, saved in the web UI's **Settings** tab (`settings.json`, not versioned) | artwork search on SteamGridDB (optional) |
 
 **WSL:** keep the project inside WSL (`~/gb5`, not `/mnt/c/...`: much faster), and open the web UI
 from Windows at `http://localhost:8080`.
@@ -112,9 +113,9 @@ changed and skips (and reports) the ones that are open.
 | `--sgdb` | name, icon and background from SteamGridDB (whatever you pass by hand wins) |
 | `--name`, `--icon`, `--hero`, `--launch` | your own name and images (any format; centre-cropped) |
 | `--music` | a ready `snd0.at9` (48 kHz, 2 MiB max; there's no free ATRAC9 encoder) |
-| `--size pixel\|fill\|16:9` | picture size to start with (default `16:9`) |
-| `--a-button cross\|circle` | which button is the GBA's A (default `cross`) |
-| `--lcd`, `--gba-colors` | LCD grid / GBA screen colours (default off) |
+| `--size pixel\|fill\|16:9` | picture size to start with |
+| `--a-button cross\|circle` | which button is the GBA's A |
+| `--lcd`, `--gba-colors` (`--no-lcd`…) | LCD grid / GBA screen colours |
 | `--save` | import a `.sav` (mGBA, VBA, cartridge). **On deploy it replaces the save on the console** |
 | `--bios` | your BIOS; `--bios none` to leave it out |
 | `--title-id` | force the ID |
@@ -122,7 +123,7 @@ changed and skips (and reports) the ones that are open.
 Takes `.gba` and `.zip` (as No-Intro sets come). While building it tells you the game's save type, the
 cheats it gets and the extra hardware it uses.
 
-The `--size`, `--a-button`, `--lcd` and `--gba-colors` options are only the starting point
+Left out, those four come from the web UI's **Settings** tab (else `16:9`, Cross, both off). They are only the starting point
 (`defaults.txt` in the title). Whatever you change in the game (GB5 Menu → Options) goes to
 `settings.txt` and always wins, even if you build and deploy again.
 
@@ -132,9 +133,11 @@ The `--size`, `--a-button`, `--lcd` and `--gba-colors` options are only the star
 python3 gb5.py serve   # http://127.0.0.1:8080
 ```
 
-Pick the ROM, artwork (yours or SteamGridDB's), music, BIOS, save and starting options; see how it will
+Pick the ROM, artwork (yours or SteamGridDB's), music and save; see how it will
 look on the PS5 home screen and which cheats it gets; then build or upload to the console. The
-**Update all games on the PS5** button does what `update-all` does.
+**Update all games on the PS5** button does what `update-all` does. The **Settings** tab holds the
+GB5 Menu options every game starts with, the GBA BIOS (saved as `bios/gba_bios.bin`) and your
+SteamGridDB API key.
 
 #### The title ID
 
@@ -298,7 +301,8 @@ Se usa desde la terminal (`gb5.py`) o desde una web local con vista previa del m
    - macOS: la primera vez, clic derecho → Abrir (la app no está firmada). Si aun así no abre:
      `xattr -d com.apple.quarantine gb5`.
    - Windows: SmartScreen puede avisar; "Más información" → "Ejecutar de todas formas".
-3. Opcional, junto a `gb5`: `bios/gba_bios.bin` (tu BIOS) y `.env` con `STEAMGRIDDBAPI=<tu clave>`.
+3. Opcional, en la pestaña **Ajustes**: tu API key de SteamGridDB (para buscar arte) y tu BIOS de GBA
+   (para la intro al arrancar).
 
 El mismo archivo sirve en terminal: `./gb5 build ROM --sgdb`, `./gb5 deploy out/<ID> --host <IP de la PS5>`…
 Los requisitos de abajo son solo para compilar GB5 tú mismo.
@@ -315,7 +319,7 @@ Los requisitos de abajo son solo para compilar GB5 tú mismo.
 | Docker con la imagen `ps5title` (Arch amd64 + clang 18); en WSL, Docker Desktop con la integración de WSL | enlazar y firmar el `eboot.bin` |
 | [PS5_Vulkan + PS5_VulkanTemplate](https://github.com/mihawk-99/PS5_Vulkan) ya compilados (por defecto en `~/ps5gpu`) | CRT, platform layer, `ps5-native-tool` y `libc.prx` del título |
 | [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk) + LLVM 18 (`brew install llvm@18` [`sudo apt install llvm-18 clang-18 lld-18`]) | el payload que registra los títulos |
-| `.env` con `STEAMGRIDDBAPI=<tu clave>` | buscar arte en SteamGridDB (opcional) |
+| Una API key de SteamGridDB, guardada en la pestaña **Ajustes** de la web (`settings.json`, no se versiona) | buscar arte en SteamGridDB (opcional) |
 
 **WSL:** deja el proyecto dentro de WSL (`~/gb5`, no en `/mnt/c/...`: es mucho más rápido) y abre la
 web desde Windows en `http://localhost:8080`.
@@ -373,9 +377,9 @@ Opciones de `build`:
 | `--sgdb` | nombre, icono y fondo de SteamGridDB (lo que pases a mano tiene prioridad) |
 | `--name`, `--icon`, `--hero`, `--launch` | nombre e imágenes propias (cualquier formato; se recortan al centro) |
 | `--music` | `snd0.at9` ya codificado (48 kHz, máx. 2 MiB; no hay encoder ATRAC9 libre) |
-| `--size pixel\|fill\|16:9` | tamaño de la imagen al empezar (por defecto `16:9`) |
-| `--a-button cross\|circle` | qué botón es la A de la GBA (por defecto `cross`) |
-| `--lcd`, `--gba-colors` | filtro LCD / colores de la pantalla de GBA (por defecto apagados) |
+| `--size pixel\|fill\|16:9` | tamaño de la imagen al empezar |
+| `--a-button cross\|circle` | qué botón es la A de la GBA |
+| `--lcd`, `--gba-colors` (`--no-lcd`…) | filtro LCD / colores de la pantalla de GBA |
 | `--save` | importar un `.sav` (mGBA, VBA, cartucho). **Al desplegar reemplaza la partida de la consola** |
 | `--bios` | tu BIOS; `--bios none` para no incluirla |
 | `--title-id` | forzar el ID |
@@ -383,7 +387,7 @@ Opciones de `build`:
 Acepta `.gba` y `.zip` (como vienen los sets No-Intro). Al construir dice qué tipo de guardado tiene el
 juego, qué cheats lleva y qué hardware extra usa.
 
-Las opciones de `--size`, `--a-button`, `--lcd` y `--gba-colors` son solo el punto de partida
+Si no las pasas, esas cuatro salen de la pestaña **Ajustes** de la web (si no, `16:9`, Cruz, ambos apagados). Son solo el punto de partida
 (`defaults.txt` en el título). Lo que cambies en el juego (GB5 Menu → Opciones) se guarda en
 `settings.txt` y siempre gana, aunque vuelvas a construir y desplegar.
 
@@ -393,9 +397,11 @@ Las opciones de `--size`, `--a-button`, `--lcd` y `--gba-colors` son solo el pun
 python3 gb5.py serve   # http://127.0.0.1:8080
 ```
 
-Eliges ROM, arte (tuyo o de SteamGridDB), música, BIOS, partida y opciones de inicio; ves cómo quedará
+Eliges ROM, arte (tuyo o de SteamGridDB), música y partida; ves cómo quedará
 en el menú de la PS5 y la lista de cheats; y construyes o subes a la consola. El botón **Actualizar todos
-los juegos en la PS5** hace lo mismo que `update-all`.
+los juegos en la PS5** hace lo mismo que `update-all`. La pestaña **Ajustes** guarda las opciones del GB5 Menu
+con las que empieza cada juego, la BIOS de GBA (se guarda como `bios/gba_bios.bin`) y tu API key
+de SteamGridDB.
 
 #### El ID del título
 

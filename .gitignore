@@ -6,6 +6,7 @@
 *.sav
 .env
 .env.*
+/settings.json
 
 # Built / generated (runtime/dist/ and tools/register.elf stay in git: the release packages them)
 /out/
