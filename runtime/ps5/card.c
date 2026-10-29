@@ -58,13 +58,16 @@ void text_ascii(char *out, size_t n, const char *in) {
 
 // One line of text, `s` pixels per font unit, top-left at (x, y).
 static void text(const struct canvas *px, int x, int y, int s, char *str, uint32_t c) {
-  static char vb[64 * 1024];
+  static char vb[64 * 1024];  // shared by the card threads and the main thread's indicators: one lock
+  static pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
+  pthread_mutex_lock(&mx);
   int quads = stb_easy_font_print(0, 0, str, NULL, vb, sizeof vb);
   for (int q = 0; q < quads; q++) {
     float *v = (float *)(vb + q * 64);  // 4 vertices of 16 bytes: x, y, z, rgba
     float x0 = v[0], y0 = v[1], x1 = v[8], y1 = v[9];
     fill(px, x + (int)(x0 * s), y + (int)(y0 * s), (int)((x1 - x0) * s), (int)((y1 - y0) * s), c);
   }
+  pthread_mutex_unlock(&mx);
 }
 
 // Greedy word wrap into at most `max_lines` lines of `width` pixels; returns the y after the text.
@@ -146,6 +149,23 @@ const uint32_t *card_sun(int level, int es) {
   snprintf(line, sizeof line, "%s %d/10", es ? "SOL" : "SUN", level);
   text(&cv, (SUN_W - 2 * stb_easy_font_width(line)) / 2, 12, 2, line, WHITE);
   for (int i = 0; i < 10; i++) fill(&cv, 10 + i * 20, 40, 18, 14, i < level ? EDGE : 0xff3a3028u);
+  return px;
+}
+
+#define HUD_ROW 40
+#define HUD_GAP 6
+const uint32_t *card_hud(const char *const *lines, int n, int *h) {
+  static uint32_t px[CARD_W * 13 * (HUD_ROW + HUD_GAP)];
+  struct canvas cv = {px, CARD_W, 0};
+  if (n > 13) n = 13;
+  cv.h = *h = n * (HUD_ROW + HUD_GAP) - HUD_GAP;
+  memset(px, 0, sizeof(uint32_t) * CARD_W * (size_t)cv.h);  // 0: fully transparent between rows
+  for (int i = 0; i < n; i++) {
+    int y = i * (HUD_ROW + HUD_GAP);
+    fill(&cv, 0, y, CARD_W, HUD_ROW, PILL);
+    fill(&cv, 0, y, 4, HUD_ROW, EDGE);
+    wrapped(&cv, 16, y + 10, 2, CARD_W - 32, 1, lines[i], WHITE);
+  }
   return px;
 }
 

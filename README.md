@@ -67,17 +67,15 @@ Optional: [RA Hub](https://github.com/DevVeda/rahub) for achievements ([how it's
 ### Setup
 
 ```bash
-# image libraries (public domain / MIT)
-mkdir -p third_party && cd third_party
-curl -fLO https://raw.githubusercontent.com/nothings/stb/master/stb_image.h
-curl -fLO https://raw.githubusercontent.com/nothings/stb/master/stb_image_write.h
-curl -fLO https://raw.githubusercontent.com/richgel999/bc7enc/master/bc7enc.c
-curl -fLO https://raw.githubusercontent.com/richgel999/bc7enc/master/bc7enc.h
-cd ..
+./setup.sh                        # Python 3.10+ and a C compiler: enough to build games (eboot.bin and register.elf come prebuilt)
+./setup.sh --runtime              # also Rust + FreeBSD target and LLVM 18; checks Docker, PS5_Vulkan and ps5-payload-sdk
 
-runtime/build.sh                  # eboot.bin (runtime/dist/), once and after every runtime change
+runtime/build.sh                  # eboot.bin (runtime/dist/), after every runtime change
 make -C tools                     # register.elf
 ```
+
+`setup.sh` uses Homebrew, apt, dnf or pacman and can be run again at any time. The Docker image,
+PS5_Vulkan and ps5-payload-sdk can't be installed from it: it says which ones are missing.
 
 `runtime/build.sh` reads `PS5GPU` (where PS5_Vulkan and PS5_VulkanTemplate live) and `IMAGE` (the Docker
 image) when the defaults don't fit; also from `runtime/local.env` (local, not versioned), e.g.
@@ -200,6 +198,11 @@ With [RA Hub](https://github.com/DevVeda/rahub) running on the PS5 and signed in
 - All its RetroAchievements calls go through `/dorequest`, since the title has no TLS of its own.
 - Badges come from `/badge` and cheat updates from `/cheats`.
 - An unlock shows a toast like the PS5's trophy one (badge + name), top right.
+- Bottom right, while they apply: measured progress (`3/10`), active challenges and leaderboard trackers.
+  Leaderboard attempts (started, failed, submitted, your rank) arrive as notifications.
+- **Offline:** a game that was started online once also starts without a connection. Unlocks and
+  leaderboard entries RetroAchievements hasn't confirmed are kept in `ra_pending.txt` and sent when the
+  connection returns, in that session or the next one.
 
 **Hardcore mode** (Settings, or GB5 Menu → Options): no state loading, rewind or cheats; turning it on in a
 game resets it, turning it off is always allowed. The game says which mode it started in. GB5 identifies
@@ -221,11 +224,13 @@ Achievements depend on the ROM's MD5: use clean (No-Intro) dumps.
 | `game.sav` | the cartridge save |
 | `state1-3.bin`, `settings.txt`, `cheats_on.txt` | states, options changed in the game and cheats turned on |
 | `log.txt` | what happened: detected save type, BIOS, RetroAchievements, states |
+| `ra_pending.txt`, `ra_*_<user>.json` | RetroAchievements: unlocks not yet confirmed; the game's data and your unlocks, for offline starts |
 
 ### Layout
 
 ```
 gb5.py           CLI + the web page's server (standard library only)
+setup.sh             installs the prerequisites
 web/index.html       the web page
 mksys.c              icon0.png and BC7 DDS backgrounds
 runtime/
@@ -348,17 +353,15 @@ Opcional: [RA Hub](https://github.com/DevVeda/rahub) para los logros ([cómo se 
 ### Instalación
 
 ```bash
-# librerías de imagen (dominio público / MIT)
-mkdir -p third_party && cd third_party
-curl -fLO https://raw.githubusercontent.com/nothings/stb/master/stb_image.h
-curl -fLO https://raw.githubusercontent.com/nothings/stb/master/stb_image_write.h
-curl -fLO https://raw.githubusercontent.com/richgel999/bc7enc/master/bc7enc.c
-curl -fLO https://raw.githubusercontent.com/richgel999/bc7enc/master/bc7enc.h
-cd ..
+./setup.sh                        # Python 3.10+ y un compilador de C: basta para crear juegos (eboot.bin y register.elf vienen hechos)
+./setup.sh --runtime              # además Rust + target FreeBSD y LLVM 18; comprueba Docker, PS5_Vulkan y ps5-payload-sdk
 
-runtime/build.sh                  # el eboot.bin (runtime/dist/), una vez y tras cada cambio del runtime
+runtime/build.sh                  # el eboot.bin (runtime/dist/), tras cada cambio del runtime
 make -C tools                     # register.elf
 ```
+
+`setup.sh` usa Homebrew, apt, dnf o pacman y se puede repetir cuando quieras. La imagen de Docker,
+PS5_Vulkan y ps5-payload-sdk no se pueden instalar desde él: avisa de cuáles faltan.
 
 `runtime/build.sh` lee `PS5GPU` (dónde están PS5_Vulkan y PS5_VulkanTemplate) e `IMAGE` (la imagen de
 Docker) si no usas los valores por defecto; también desde `runtime/local.env` (local, no se versiona),
@@ -482,6 +485,11 @@ Con [RA Hub](https://github.com/DevVeda/rahub) corriendo en la PS5 y la sesión 
 - Todas sus llamadas a RetroAchievements pasan por `/dorequest`, porque el título no tiene TLS propio.
 - Los badges llegan por `/badge` y la actualización de cheats por `/cheats`.
 - Al desbloquear un logro sale un aviso como el de trofeos de la PS5 (badge + nombre), arriba a la derecha.
+- Abajo a la derecha, mientras aplican: progreso medido (`3/10`), retos activos y marcadores de las
+  clasificaciones (leaderboards). Los intentos (iniciado, fallido, enviado, tu puesto) llegan como notificaciones.
+- **Sin conexión:** un juego que ya arrancó una vez con conexión también arranca sin ella. Los logros y
+  las entradas de clasificación que RetroAchievements no ha confirmado se guardan en `ra_pending.txt` y se
+  envían cuando vuelve la conexión, en esa sesión o en la siguiente.
 
 **Modo hardcore** (Ajustes, o GB5 Menu → Opciones): sin cargar estados, rebobinar ni cheats; activarlo en un
 juego lo reinicia, desactivarlo se puede siempre. El juego avisa en qué modo empezó. GB5 se identifica como
@@ -502,11 +510,13 @@ servidor muestra "Unknown Emulator" y solo cuentan los logros casual (softcore).
 | `game.sav` | la partida del cartucho |
 | `state1-3.bin`, `settings.txt`, `cheats_on.txt` | estados, opciones cambiadas en el juego y cheats activos |
 | `log.txt` | qué pasó: guardado detectado, BIOS, RetroAchievements, estados |
+| `ra_pending.txt`, `ra_*_<usuario>.json` | RetroAchievements: logros aún sin confirmar; los datos del juego y tus logros, para arrancar sin conexión |
 
 ### Estructura
 
 ```
 gb5.py           CLI + servidor de la web (solo librería estándar)
+setup.sh             instala los requisitos
 web/index.html       la web
 mksys.c              icon0.png y fondos DDS BC7
 runtime/

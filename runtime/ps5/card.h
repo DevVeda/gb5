@@ -17,6 +17,8 @@ void card_unlock(const char *title, unsigned points, const char *badge, int es);
 // Once per presented frame, main thread: the card to draw now (CARD_W x CARD_H, VideoOut bytes R,G,B,A,
 // alpha in the top byte: blend it), or NULL.
 const uint32_t *card_frame(void);
+// The in-game indicators: one translucent row per line, CARD_W x *h pixels (static, until the next call).
+const uint32_t *card_hud(const char *const *lines, int n, int *h);
 // UTF-8 -> what stb_easy_font can draw (ASCII 32..126): Latin-1 letters lose their accent, others become '?'.
 void text_ascii(char *out, size_t n, const char *in);
 // The pixels of one card; png may be NULL. Caller frees. (Separate so it can be checked off the console.)

@@ -11,6 +11,9 @@ void ra_start(const void *machine, const uint8_t *rom, size_t len, int hardcore)
 void ra_set_hardcore(int on);
 // Once per emulated frame.
 void ra_frame(void);
+// The in-game indicators (challenges, leaderboard trackers, measured progress) to draw bottom right:
+// CARD_W x *h pixels like card_frame's, or NULL when there are none. Main thread.
+const uint32_t *ra_hud(int *h);
 // The game was reset (new machine at the same ROM): restart the achievement session on it.
 void ra_reset(const void *machine);
 // The menu's ACHIEVEMENTS page: refresh when it opens. -1 = not connected / no game, else the count.

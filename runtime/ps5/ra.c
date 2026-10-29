@@ -2,13 +2,17 @@
 //   GET  127.0.0.1:8045/session    the signed-in user and Connect token (RA Hub signs in once)
 //   POST 127.0.0.1:8045/dorequest  RA Hub forwards rcheevos' calls to RetroAchievements over HTTPS,
 //                                  so the title needs no TLS of its own
-// Progress and unlocks show as console notifications (top right).
+// Unlocks show as an in-game card (card.c); measured progress, active challenges and leaderboard trackers
+// as the in-game indicators (ra_hud); the rest as console notifications (top right).
+// Offline: login, the game's data and the player's unlocks come from the last online start, and unlocks /
+// leaderboard entries RA hasn't confirmed wait in ra_pending.txt until it answers (next minute or session).
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "ra.h"
 #include "card.h"
 #include "rc_client.h"
 #include "rhash/md5.h"
 #include "rc_version.h"
+#include "rc_api_runtime.h"
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <pthread.h>
@@ -17,6 +21,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
+#include <time.h>
 #include <unistd.h>
 
 void say(const char *fmt, ...);
@@ -29,6 +35,15 @@ int sceSystemServiceParamGetInt(int param_id, int *value);
 static rc_client_t *client;
 static const void *machine;
 static int es;  // console in Spanish
+static char user[64], token[64];  // RA Hub's session: the token only until login completes
+static int offline;               // this session started without RetroAchievements (cached data)
+static int loaded;                // the game is loaded: earlier sessions' records can be replayed
+static time_t session_start;
+static char hash[33];             // the ROM's MD5: how RA knows the game
+#ifndef APP0
+#define APP0 "/app0"  // the title's folder (a host test points it elsewhere)
+#endif
+#define PENDING_PATH APP0 "/ra_pending.txt"
 #ifndef GB5_VERSION
 #define GB5_VERSION "0.0.0"  // build.sh passes the last git tag
 #endif
@@ -106,6 +121,130 @@ static int json_str(const char *js, const char *key, char *out, size_t n) {
   return 1;
 }
 
+static time_t now(void) {
+  struct timespec t;
+  return clock_gettime(CLOCK_REALTIME, &t) ? 0 : t.tv_sec;
+}
+
+// One field of rcheevos' form body (its values here are plain: digits, names, hashes, tokens).
+static int form(const char *post, const char *key, char *out, size_t n) {
+  size_t k = strlen(key);
+  for (const char *p = post; p; p = strchr(p, '&') ? strchr(p, '&') + 1 : NULL)
+    if (!strncmp(p, key, k) && p[k] == '=') {
+      size_t l = strcspn(p += k + 1, "&");
+      if (l >= n) return 0;
+      memcpy(out, p, l);
+      out[l] = 0;
+      return 1;
+    }
+  return 0;
+}
+
+// RA got the request and answered (done, even if it refused); else it's worth sending again.
+static int answered(int status, const char *body) { return body && body[0] && status >= 200 && status < 500 && status != 429; }
+
+static void write_file(const char *path, const char *d, size_t n) {
+  char tmp[96];
+  snprintf(tmp, sizeof tmp, "%s.tmp", path);
+  FILE *f = fopen(tmp, "wb");
+  int ok = f && fwrite(d, 1, n, f) == n;
+  if (f) ok &= fclose(f) == 0;
+  if (ok && rename(tmp, path) == 0) chmod(path, 0666);  // FTP (another process) must be able to read it
+  else say("ra: cannot write %s", path);
+}
+
+static char *read_file(const char *path, size_t *len) {
+  FILE *f = fopen(path, "rb");
+  if (!f) return NULL;
+  fseek(f, 0, SEEK_END);
+  long n = ftell(f);
+  fseek(f, 0, SEEK_SET);
+  char *d = n > 0 ? malloc((size_t)n + 1) : NULL;
+  if (d && fread(d, 1, (size_t)n, f) != (size_t)n) { free(d); d = NULL; }
+  fclose(f);
+  if (d) d[*len = (size_t)n] = 0;
+  return d;
+}
+
+// ---------------- offline: RA's last answers ----------------
+// The game's data and the player's unlocks, as RA sent them at the last online start (never the token).
+static void cache_path(char *out, size_t n, const char *r) { snprintf(out, n, APP0 "/ra_%s_%s.json", r, user); }
+
+// login2 without a connection: RA Hub's session is the proof; achievementsets / startsession: the cache.
+static char *offline_answer(const char *r, size_t *len) {
+  char path[160];
+  if (!strcmp(r, "login2")) {
+    char *b = malloc(256);
+    if (b) *len = (size_t)snprintf(b, 256, "{\"Success\":true,\"User\":\"%s\",\"Token\":\"%s\"}", user, token);
+    return b;
+  }
+  if (strcmp(r, "achievementsets") && strcmp(r, "startsession")) return NULL;
+  cache_path(path, sizeof path, r);
+  return read_file(path, len);
+}
+
+// ---------------- offline: unlocks RA hasn't confirmed ----------------
+// One line each: "A <achievement> <hardcore> <unix time> <user> <mac>" or "L <leaderboard> <score> <unix time>
+// <user> <mac>", mac = md5(token|the rest): only the signed-in player's token makes or replays a record, which
+// is what the API itself asks for. A record leaves once RA has answered it.
+static pthread_mutex_t pending_mx = PTHREAD_MUTEX_INITIALIZER;
+
+static void record_mac(char out[33], const char *tok, const char *rest) {
+  md5_state_t s;
+  md5_byte_t d[16];
+  md5_init(&s);
+  md5_append(&s, (const md5_byte_t *)tok, (int)strlen(tok));
+  md5_append(&s, (const md5_byte_t *)"|", 1);
+  md5_append(&s, (const md5_byte_t *)rest, (int)strlen(rest));
+  md5_finish(&s, d);
+  for (int i = 0; i < 16; i++) snprintf(out + i * 2, 3, "%02x", d[i]);
+}
+
+// "A 123 1" for an award, "L 45 -300" for a leaderboard entry; 0 for any other call.
+static int record_key(const char *post, char *key, size_t n) {
+  char r[24], id[16], v[16];
+  if (!form(post, "r", r, sizeof r)) return 0;
+  if (!strcmp(r, "awardachievement") && form(post, "a", id, sizeof id) && form(post, "h", v, sizeof v)) return snprintf(key, n, "A %s %s", id, v) > 0;
+  if (!strcmp(r, "submitlbentry") && form(post, "i", id, sizeof id) && form(post, "s", v, sizeof v)) return snprintf(key, n, "L %s %s", id, v) > 0;
+  return 0;
+}
+
+// add: append `add` unless a record with `key` is there. Else drop that record.
+// ponytail: 16 KB of records (~200); an older line falls off past that
+static void pending_edit(const char *key, const char *add) {
+  static char in[16384], out[16384 + 256];
+  size_t k = strlen(key), o = 0, n = 0;
+  int had = 0;
+  pthread_mutex_lock(&pending_mx);
+  char *d = read_file(PENDING_PATH, &n);
+  const char *keep = d ? d + (n >= sizeof in ? n - sizeof in + 1 : 0) : "";
+  if (d && keep > d && strchr(keep, '\n')) keep = strchr(keep, '\n') + 1;  // never half a line
+  snprintf(in, sizeof in, "%s", keep);
+  free(d);
+  for (char *l = in, *e; *l; l = e) {
+    e = strchr(l, '\n') ? strchr(l, '\n') + 1 : l + strlen(l);
+    if (!strncmp(l, key, k) && l[k] == ' ') {
+      had = 1;
+      if (!add) continue;
+    }
+    memcpy(out + o, l, (size_t)(e - l));
+    o += (size_t)(e - l);
+  }
+  if (add && !had) o += (size_t)snprintf(out + o, sizeof out - o, "%s\n", add);
+  if (add ? !had : had) write_file(PENDING_PATH, out, o);
+  pthread_mutex_unlock(&pending_mx);
+}
+
+// An award / leaderboard request is going out: keep it until RA answers. Retries carry o= (seconds since).
+static void pending_note(const char *post) {
+  char key[48], u[64], t[64], o[16], rest[160], mac[33], line[200];
+  if (!record_key(post, key, sizeof key) || !form(post, "u", u, sizeof u) || !form(post, "t", t, sizeof t)) return;
+  snprintf(rest, sizeof rest, "%s %lld %s", key, (long long)(now() - (form(post, "o", o, sizeof o) ? atol(o) : 0)), u);
+  record_mac(mac, t, rest);
+  snprintf(line, sizeof line, "%s %s", rest, mac);
+  pending_edit(key, line);
+}
+
 // ---------------- rc_client plumbing ----------------
 struct call {
   char *post;
@@ -117,7 +256,22 @@ static void *call_main(void *arg) {
   struct call *c = arg;
   int status = 0;
   size_t len = 0;
-  char *body = hub("POST", "/dorequest", c->post, &status, &len);
+  char *body = hub("POST", "/dorequest", c->post, &status, &len), key[48], r[24] = "";
+  form(c->post, "r", r, sizeof r);
+  if (answered(status, body)) {
+    if (record_key(c->post, key, sizeof key)) pending_edit(key, NULL);
+    if (status == 200 && strstr(body, "\"Success\":true") && (!strcmp(r, "achievementsets") || !strcmp(r, "startsession"))) {
+      char path[160];
+      cache_path(path, sizeof path, r);
+      write_file(path, body, len);
+    }
+  } else {
+    char *cached = offline_answer(r, &len);  // no connection: start from what RA said last time
+    free(body);
+    body = cached;  // else none: rcheevos sees no answer and retries (RA Hub's 502 JSON would read as done)
+    status = 200;
+    offline |= cached != NULL;
+  }
   rc_api_server_response_t resp = {0};
   resp.body = body ? body : "";
   resp.body_length = body ? len : 0;
@@ -136,6 +290,7 @@ static void server_call(const rc_api_request_t *req, rc_client_server_callback_t
   struct call *job = malloc(sizeof *job);
   pthread_t t;
   if (job && strstr(req->url, "/dorequest.php") && (job->post = strdup(req->post_data ? req->post_data : ""))) {
+    pending_note(job->post);
     job->cb = cb;
     job->cb_data = cb_data;
     if (pthread_create(&t, NULL, call_main, job) == 0) {
@@ -161,8 +316,73 @@ static void on_log(const char *msg, const rc_client_t *c) {
   say("rcheevos: %s", msg);
 }
 
+// ---------------- in-game indicators ----------------
+// Active challenges, leaderboard trackers and the measured-progress line, drawn bottom right (card_hud).
+// rcheevos raises them from rc_client_do_frame (main thread), a few from server callbacks: one lock.
+#define HUD_MAX 6
+struct hud_item { uint32_t id; char text[96]; };
+static struct hud_item chal[HUD_MAX], trk[HUD_MAX];
+static int nchal, ntrk, hud_dirty;
+static char prog[96];
+static pthread_mutex_t hud_mx = PTHREAD_MUTEX_INITIALIZER;
+
+// Put (text != NULL) or remove the entry `id` in list l of *n.
+static void hud_set(struct hud_item *l, int *n, uint32_t id, const char *text) {
+  int i = 0;
+  while (i < *n && l[i].id != id) i++;
+  if (!text) {
+    if (i < *n) memmove(&l[i], &l[i + 1], sizeof *l * (size_t)(--*n - i));
+  } else if (i < *n || *n < HUD_MAX) {
+    if (i == *n) (*n)++;
+    l[i].id = id;
+    snprintf(l[i].text, sizeof l[i].text, "%s", text);
+  }
+  hud_dirty = 1;
+}
+
+const uint32_t *ra_hud(int *h) {
+  static const uint32_t *px;
+  static int ph;
+  pthread_mutex_lock(&hud_mx);
+  if (hud_dirty) {
+    const char *lines[2 * HUD_MAX + 1];
+    int n = 0;
+    for (int i = 0; i < ntrk; i++) lines[n++] = trk[i].text;
+    for (int i = 0; i < nchal; i++) lines[n++] = chal[i].text;
+    if (prog[0]) lines[n++] = prog;
+    px = n ? card_hud(lines, n, &ph) : NULL;
+    hud_dirty = 0;
+  }
+  pthread_mutex_unlock(&hud_mx);
+  *h = ph;
+  return px;
+}
+
+static void indicators(const rc_client_event_t *e) {
+  char t[96];
+  pthread_mutex_lock(&hud_mx);
+  switch (e->type) {
+    case RC_CLIENT_EVENT_ACHIEVEMENT_CHALLENGE_INDICATOR_SHOW:
+      snprintf(t, sizeof t, "%s %s", es ? "Reto:" : "Challenge:", e->achievement->title);
+      hud_set(chal, &nchal, e->achievement->id, t);
+      break;
+    case RC_CLIENT_EVENT_ACHIEVEMENT_CHALLENGE_INDICATOR_HIDE: hud_set(chal, &nchal, e->achievement->id, NULL); break;
+    case RC_CLIENT_EVENT_ACHIEVEMENT_PROGRESS_INDICATOR_SHOW:
+    case RC_CLIENT_EVENT_ACHIEVEMENT_PROGRESS_INDICATOR_UPDATE:  // rcheevos hides it again after 2 s
+      snprintf(prog, sizeof prog, "%s  %s", e->achievement->measured_progress, e->achievement->title);
+      hud_dirty = 1;
+      break;
+    case RC_CLIENT_EVENT_ACHIEVEMENT_PROGRESS_INDICATOR_HIDE: prog[0] = 0; hud_dirty = 1; break;
+    case RC_CLIENT_EVENT_LEADERBOARD_TRACKER_SHOW:
+    case RC_CLIENT_EVENT_LEADERBOARD_TRACKER_UPDATE: hud_set(trk, &ntrk, e->leaderboard_tracker->id, e->leaderboard_tracker->display); break;
+    case RC_CLIENT_EVENT_LEADERBOARD_TRACKER_HIDE: hud_set(trk, &ntrk, e->leaderboard_tracker->id, NULL); break;
+  }
+  pthread_mutex_unlock(&hud_mx);
+}
+
 static void on_event(const rc_client_event_t *e, rc_client_t *c) {
   (void)c;
+  indicators(e);
   // RA's warnings ("Unknown Emulator", "Unsupported Game Version") arrive as pseudo-achievements that
   // trigger at once; rcheevos numbers them from 101000001 (RC_CLIENT_ACHIEVEMENT_WARNING_ID).
   if (e->type == RC_CLIENT_EVENT_ACHIEVEMENT_TRIGGERED && e->achievement->id >= 101000001u)
@@ -173,6 +393,19 @@ static void on_event(const rc_client_event_t *e, rc_client_t *c) {
   }
   else if (e->type == RC_CLIENT_EVENT_GAME_COMPLETED)
     notify(es ? "¡Juego completado en RetroAchievements!" : "Game completed on RetroAchievements!");
+  else if (e->type == RC_CLIENT_EVENT_LEADERBOARD_STARTED)
+    notify(es ? "Clasificación: intento iniciado\n%s" : "Leaderboard attempt started\n%s", e->leaderboard->title);
+  else if (e->type == RC_CLIENT_EVENT_LEADERBOARD_FAILED)
+    notify(es ? "Clasificación: intento fallido\n%s" : "Leaderboard attempt failed\n%s", e->leaderboard->title);
+  else if (e->type == RC_CLIENT_EVENT_LEADERBOARD_SUBMITTED)
+    notify(es ? "Clasificación: %s enviado\n%s" : "Leaderboard: %s submitted\n%s", e->leaderboard->tracker_value, e->leaderboard->title);
+  else if (e->type == RC_CLIENT_EVENT_LEADERBOARD_SCOREBOARD)
+    notify(es ? "%s\nPuesto %u de %u (mejor: %s)" : "%s\nRank %u of %u (best: %s)", e->leaderboard->title,
+           e->leaderboard_scoreboard->new_rank, e->leaderboard_scoreboard->num_entries, e->leaderboard_scoreboard->best_score);
+  else if (e->type == RC_CLIENT_EVENT_DISCONNECTED)
+    notify(es ? "RetroAchievements: sin conexión. Los logros se guardan y se envían después" : "RetroAchievements: offline. Unlocks are kept and sent later");
+  else if (e->type == RC_CLIENT_EVENT_RECONNECTED)
+    notify(es ? "RetroAchievements: conectado de nuevo, logros enviados" : "RetroAchievements: back online, unlocks sent");
   else if (e->type == RC_CLIENT_EVENT_SERVER_ERROR)
     say("ra: server error %s: %s", e->server_error->api, e->server_error->error_message);
 }
@@ -190,14 +423,61 @@ static void on_load(int result, const char *err, rc_client_t *c, void *ud) {
   rc_client_user_game_summary_t s;
   rc_client_get_user_game_summary(c, &s);
   int hc = rc_client_get_hardcore_enabled(c);  // RA's rule: say which mode the game started in
-  notify(es ? "Conectado a RetroAchievements (%s)\n%u de %u logros conseguidos" : "Connected to RetroAchievements (%s)\n%u of %u achievements unlocked",
+  notify(es ? "%s RetroAchievements (%s)\n%u de %u logros conseguidos" : "%s RetroAchievements (%s)\n%u of %u achievements unlocked",
+         offline ? (es ? "Sin conexión con" : "Offline from") : (es ? "Conectado a" : "Connected to"),
          hc ? "hardcore" : "casual", s.num_unlocked_achievements, s.num_core_achievements);
+  loaded = 1;
 }
 
-static char hash[33];
+static void replay_done(const rc_api_server_response_t *r, void *ud) { (void)r, (void)ud; }  // call_main drops the record
+
+// Send again what earlier sessions left unconfirmed (this session's own, rcheevos retries itself). Main thread.
+static void replay(void) {
+  const rc_client_user_t *me = rc_client_get_user_info(client);
+  size_t n = 0;
+  pthread_mutex_lock(&pending_mx);
+  char *d = read_file(PENDING_PATH, &n);
+  pthread_mutex_unlock(&pending_mx);
+  for (char *l = d, *e; me && l && *l; l = e) {
+    char type, who[64], mac[33], want[33], key[48];
+    unsigned id;
+    int v;
+    long long when;
+    if ((e = strchr(l, '\n'))) *e++ = 0;
+    else e = l + strlen(l);
+    if (sscanf(l, "%c %u %d %lld %63s %32s", &type, &id, &v, &when, who, mac) != 6) continue;
+    snprintf(key, sizeof key, "%c %u %d", type, id, v);
+    *strrchr(l, ' ') = 0;  // the record without its mac
+    record_mac(want, me->token, l);
+    if (strcmp(who, me->username) || strcmp(mac, want)) {  // another player's, or edited
+      say("ra: dropping pending record \"%s\"", l);
+      pending_edit(key, NULL);
+      continue;
+    }
+    if (when >= session_start) continue;
+    long long ago = now() - when;
+    rc_api_request_t req;
+    int rc = -1;
+    if (type == 'A') {
+      const rc_client_achievement_t *a = rc_client_get_achievement_info(client, id);
+      if (a && a->unlocked & (v ? RC_CLIENT_ACHIEVEMENT_UNLOCKED_HARDCORE : RC_CLIENT_ACHIEVEMENT_UNLOCKED_SOFTCORE)) { pending_edit(key, NULL); continue; }
+      rc_api_award_achievement_request_t p = {me->username, me->token, id, (uint32_t)v, hash, ago > 0 ? (uint32_t)ago : 0};
+      rc = rc_api_init_award_achievement_request(&req, &p);
+    } else if (type == 'L') {
+      rc_api_submit_lboard_entry_request_t p = {me->username, me->token, id, v, hash, ago > 0 ? (uint32_t)ago : 0};
+      rc = rc_api_init_submit_lboard_entry_request(&req, &p);
+    }
+    if (rc != RC_OK) continue;
+    say("ra: sending %s from an earlier session (%lld s ago)", key, ago);
+    server_call(&req, replay_done, NULL, client);
+    rc_api_destroy_request(&req);
+  }
+  free(d);
+}
 
 static void on_login(int result, const char *err, rc_client_t *c, void *ud) {
   (void)ud;
+  memset(token, 0, sizeof token);  // rcheevos keeps its own copy
   if (result != RC_OK) {
     notify(es ? "RetroAchievements: sesión rechazada (%s). Vuelve a entrar en RA Hub" : "RetroAchievements: session refused (%s). Sign in again in RA Hub", err ? err : "?");
     return;
@@ -207,7 +487,6 @@ static void on_login(int result, const char *err, rc_client_t *c, void *ud) {
 
 void ra_start(const void *m, const uint8_t *rom, size_t len, int hardcore) {
   int lang = -1, status = 0;
-  char user[64], token[64];
   es = sceSystemServiceParamGetInt(1, &lang) == 0 && (lang == 3 || lang == 20);  // es-ES, es-419
   size_t slen;
   char *s = hub("GET", "/session", NULL, &status, &slen);
@@ -230,13 +509,13 @@ void ra_start(const void *m, const uint8_t *rom, size_t len, int hardcore) {
   say("ra: ROM MD5 %s (must be one of the game's hashes on retroachievements.org)", hash);
 
   machine = m;
+  session_start = now();
   client = rc_client_create(read_memory, server_call);
   rc_client_enable_logging(client, RC_CLIENT_LOG_LEVEL_WARN, on_log);
   rc_client_set_event_handler(client, on_event);
   // Hardcore unlocks only count once RetroAchievements approves GB5; until then its server answers "Unknown Emulator".
   rc_client_set_hardcore_enabled(client, hardcore);
   rc_client_begin_login_with_token(client, user, token, on_login, NULL);
-  memset(token, 0, sizeof token);
 }
 
 void ra_set_hardcore(int on) {
@@ -247,7 +526,13 @@ void ra_set_hardcore(int on) {
 }
 
 void ra_frame(void) {
-  if (client) rc_client_do_frame(client);
+  static int wait;  // frames to the next replay: once loaded, then every minute
+  if (!client) return;
+  rc_client_do_frame(client);
+  if (loaded && --wait <= 0) {
+    wait = 60 * 60;
+    replay();
+  }
 }
 
 void ra_reset(const void *m) {

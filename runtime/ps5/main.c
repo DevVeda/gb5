@@ -179,9 +179,21 @@ static int video_init(void) {
 // ponytail: one thread writes 1080p in ~2 ms; split it across threads if a profile says so
 #define CARD_Y 48  // the achievement toast's top; card_x comes from layout()
 
+// c over px, alpha in c's top byte (the toast and the indicators are translucent)
+static inline uint32_t blend(uint32_t px, uint32_t c) {
+  uint32_t a = c >> 24;
+  if (a == 255) return c;
+  if (!a) return px;
+  return 0xff000000u | ((((c >> 16 & 255) * a + (px >> 16 & 255) * (255 - a)) / 255) << 16) |
+         ((((c >> 8 & 255) * a + (px >> 8 & 255) * (255 - a)) / 255) << 8) | (((c & 255) * a + (px & 255) * (255 - a)) / 255);
+}
+
 static void present(const uint16_t *fb) {
   const int target = (vlast + 1) % VBUFS;
   const uint32_t *card = card_frame(), *sun = sun_frames > 0 ? card_sun(st.sun, lang_es) : NULL;
+  int hud_h = 0;
+  const uint32_t *hud = ra_hud(&hud_h);  // challenges, leaderboard trackers, progress: bottom right
+  const int hud_y = H - CARD_Y - hud_h;
   if (sun_frames > 0) sun_frames--;
   for (int b = 0; b < VBLOCKS_X * VBLOCKS_Y; b++) {
     int by = b / VBLOCKS_X * 128, bx = b % VBLOCKS_X * 128;
@@ -190,12 +202,8 @@ static void present(const uint16_t *fb) {
       int v = untile[i], y = by + (v >> 7), x = bx + (v & 127), sy = srcy[y], sx = srcx[x];
       uint32_t px = sy >= 0 && sx >= 0 ? (st.lcd && (edgex[x] | edgey[y]) ? color_dim : color)[fb[sy * 240 + sx] & 0x7fff] : 0xff000000u;
       if (sun && x >= sun_x && x < sun_x + SUN_W && y >= CARD_Y && y < CARD_Y + SUN_H) px = sun[(y - CARD_Y) * SUN_W + x - sun_x];
-      if (card && x >= card_x && x < card_x + CARD_W && y >= CARD_Y && y < CARD_Y + CARD_H) {
-        uint32_t c = card[(y - CARD_Y) * CARD_W + x - card_x], a = c >> 24;  // translucent toast over the game
-        if (a == 255) px = c;
-        else if (a) px = 0xff000000u | ((((c >> 16 & 255) * a + (px >> 16 & 255) * (255 - a)) / 255) << 16) |
-                         ((((c >> 8 & 255) * a + (px >> 8 & 255) * (255 - a)) / 255) << 8) | (((c & 255) * a + (px & 255) * (255 - a)) / 255);
-      }
+      if (card && x >= card_x && x < card_x + CARD_W && y >= CARD_Y && y < CARD_Y + CARD_H) px = blend(px, card[(y - CARD_Y) * CARD_W + x - card_x]);
+      if (hud && x >= card_x && x < card_x + CARD_W && y >= hud_y && y < hud_y + hud_h) px = blend(px, hud[(y - hud_y) * CARD_W + x - card_x]);
       out[i] = px;
     }
   }

@@ -26,6 +26,7 @@ script: a CLI and a local web UI. Machine-specific facts (console IP, local path
 ## Layout
 
 ```
+setup.sh               installs the prerequisites (brew/apt/dnf/pacman); --runtime adds the runtime toolchain
 gb5.py                 CLI + web server (stdlib Python). build, deploy, uninstall, update-all, cheats-update, serve
 web/index.html         the whole web UI (HTML + CSS + JS, no build step), tabs Create / Settings, EN/ES
 assets/logo.svg        logo: README, favicon (served at /logo.svg)
@@ -102,14 +103,24 @@ Not in git: `out/` (built titles), `ROMS/`, `bios/`, `cheatdb/` (cache), `settin
   - Turning it on in game resets the game; turning it off is free.
   - The connect notification says hardcore or casual.
 - **RA approval:** until RA approves GB5 ("hardcore-compliant"), its server says "Unknown Emulator"
-  and only casual unlocks count. Requests open from late April 2027 (6 months after v0.1.0). The
-  missing requirements are listed in TODO.md: in-game measured/challenge indicators, leaderboard UI,
-  offline unlock queue. Done: hardcore, unique User-Agent with the core, `PRIVACY.md` (linked from both
-  README halves), licences with upstream links, "everything is free" line (Ko-fi unlocks nothing).
+  and only casual unlocks count. Requests open from late April 2027 (6 months after v0.1.0). Everything
+  in the checklist is done in code (TODO.md): hardcore, unique User-Agent with the core, `PRIVACY.md`,
+  licences with upstream links, "everything is free", in-game indicators, leaderboards, offline queue.
+- **In-game indicators:** `ra_hud()` (ra.c state) → `card_hud()` (card.c pixels) → drawn bottom right in
+  `present()`: leaderboard trackers, challenges, measured progress (rcheevos hides it after 2 s).
+  Leaderboard started/failed/submitted/rank are console notifications. Leaderboards run in hardcore only.
+- **Offline:** `call_main` caches `achievementsets` / `startsession` answers in `ra_<r>_<user>.json` and serves
+  them (plus a login2 built from RA Hub's session) when RA doesn't answer. Unanswered calls go to rcheevos as
+  retryable (RA Hub's 502 JSON would read as success). Awards and leaderboard entries wait in
+  `ra_pending.txt` (`A|L id h|score time user md5(token|…)`) until RA answers; earlier sessions' records are
+  replayed from `ra_frame` once loaded and every minute. The token is never written to a file.
+- **Host test:** `ra.c` builds on the Mac with `-DAPP0=<dir>` and stubs, against a fake RA Hub on 8045
+  (needs `dangerouslyDisableSandbox`; link with `SDKROOT=.../MacOSX26.5.sdk`).
 
 ## Commands
 
 ```bash
+./setup.sh [--runtime]                                # prerequisites, like npm install (re-runnable)
 python3 gb5.py serve --port 8080                      # web UI (dev preview: .claude/launch.json "gb5-web", port 8091)
 python3 gb5.py build ROM [--sgdb] [--size 16:9|fill|pixel] [--a-button cross|circle] [--[no-]lcd] [--[no-]gba-colors] [--[no-]hardcore] [--save SAV] [--bios BIOS]
 python3 gb5.py deploy out/<ID> --host <PS5_IP>
@@ -165,7 +176,8 @@ DEPLOY means `bash runtime/build.sh`, then `python3 gb5.py update-all --host <IP
   - ✕/○ glyphs, menu cursor memory
   - Boktai, Yoshi Topsy-Turvy, WarioWare Twisted
 - **Not yet on console:** hardcore mode and RA Hub User-Agent forwarding, incl. the `gba-core/` segment
-  (needs DEPLOY + new RA Hub).
+  (needs DEPLOY + new RA Hub); in-game indicators, leaderboards and the offline queue (tested on the Mac
+  against a fake RA Hub only).
 - **Next big task:** the gba-recomp recompilation (ROM code → native x86 instead of gba-core's
   interpreter). Before that, maybe the "code refactor" TODO item.
 - **Deferred:** menu music (no free ATRAC9 encoder), e-Reader, link cable, in-game ✕/○ prompts, native
