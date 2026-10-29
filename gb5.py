@@ -442,7 +442,18 @@ def ftp_rmtree(ftp, path):
 
 def smp(ftp, host, lines, elfldr_port=9021):
     """Ask ShadowMountPlus to add folders / uninstall (-TITLEID) titles. Its API only answers on the
-    console, so tools/register.elf runs there (sent to elfldr) and reads the lines from register.txt."""
+    console, so tools/register.elf runs there (sent to elfldr) and reads the lines from register.txt.
+    While its scanner runs it refuses with "scanner_busy" (409): wait and send them again."""
+    for _ in range(6):
+        if "scanner_busy" not in smp_once(ftp, host, lines, elfldr_port):
+            return
+        print("ShadowMountPlus is busy scanning: trying again in 5 s")
+        time.sleep(5)
+    print("ShadowMountPlus stayed busy: run the same command again in a minute")
+
+
+def smp_once(ftp, host, lines, elfldr_port):
+    """One run of register.elf; returns its log ("" when there was none)."""
     try:
         ftp.mkd(REG_DIR)
     except ftplib.error_perm:
@@ -457,7 +468,7 @@ def smp(ftp, host, lines, elfldr_port=9021):
             s.sendall((RES / "tools" / "register.elf").read_bytes())
     except OSError as e:
         print("elfldr did not take register.elf on %s:%d (%s): do it from ShadowMountPlus on the console" % (host, elfldr_port, e))
-        return
+        return ""
     for _ in range(20):
         time.sleep(0.5)
         log = io.BytesIO()
@@ -466,9 +477,11 @@ def smp(ftp, host, lines, elfldr_port=9021):
         except ftplib.error_perm:
             continue
         if b"done" in log.getvalue() or b"not running" in log.getvalue():
-            print(log.getvalue().decode(errors="replace").strip())
-            return
+            text = log.getvalue().decode(errors="replace").strip()
+            print(text)
+            return text
     print("register.elf sent, but it wrote no log: check that elfldr runs payloads")
+    return ""
 
 
 SETTINGS = ROOT / "settings.json"  # the web UI's Settings tab; never in git (it holds the API key)
