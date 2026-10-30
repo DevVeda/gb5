@@ -202,7 +202,8 @@ DEPLOY means `bash runtime/build.sh`, then `python3 gb5.py update-all --host <IP
   against a fake RA Hub only). GB5 Menu → PLAYERS < 1-4 > (link cable; each extra player is another signed-in
   user's pad, any installed GB5 title from /data/homebrew with that user's save in that title; 2 side by side
   ×4, 3-4 in a 2×2 grid ×3; sound from player 1; log.txt gets "players N ... ms per frame" once a second):
-  2 players verified on console (Ruby ↔ Emerald trade); 3-4 not yet (all machines run on one thread).
+  verified on console: 2 players (Ruby ↔ Emerald trade), 3 players (Mario Kart Super Circuit, ~8.3 ms/frame avg,
+  10.1 max of 16.7, one thread); 4 not yet.
 - **Next big task:** the gba-recomp recompilation (ROM code → native x86 instead of gba-core's
   interpreter). Before that, maybe the "code refactor" TODO item.
 - **Deferred:** menu music (no free ATRAC9 encoder), e-Reader, in-game ✕/○ prompts, native
