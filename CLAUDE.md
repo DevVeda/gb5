@@ -34,6 +34,8 @@ script: a CLI and a local web UI. Machine-specific facts (console IP, local path
   - unlocks made offline are queued
   If a request conflicts with this, say so and propose a compliant version (for example, allow it only in
   casual).
+- **Thanks:** every project GB5 uses (code, data, tools, services) gets a line with a link in the README's
+  "Thanks" / "Agradecimientos" sections (both halves). Adding a dependency or source means adding it there.
 - **Style:** match the surrounding code. Short diffs, stdlib first, no new dependencies.
   `gb5.py` is standard library only. Mark deliberate shortcuts with `ponytail:` comments.
 

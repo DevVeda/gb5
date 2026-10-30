@@ -282,6 +282,20 @@ What's pending is in `TODO.md` (local, not versioned).
   RetroAchievements through RA Hub) is listed in [PRIVACY.md](PRIVACY.md).
 - Everything in GB5 is free. Ko-fi donations are welcome but unlock nothing.
 
+### Thanks
+
+GB5 stands on these projects. Thank you to their authors:
+
+- [gba-recomp](https://github.com/JRickey/gba-recomp) by JRickey: `gba-core` and `armv4t`, the emulation core.
+- [PS5_Vulkan](https://github.com/mihawk-99/PS5_Vulkan): the title's CRT, platform layer and `libc.prx`.
+- [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk) and [elfldr](https://github.com/john-tornblom/ps5-payload-elfldr): payloads on the console.
+- [ShadowMountPlus](https://github.com/drakmor/ShadowMountPlus) by drakmor: puts the titles on the home screen.
+- [RetroAchievements](https://retroachievements.org) and [rcheevos](https://github.com/RetroAchievements/rcheevos).
+- [mGBA](https://github.com/mgba-emu/mgba): the save type / cartridge hardware table and reference behaviour.
+- [libretro-database](https://github.com/libretro/libretro-database): the cheats.
+- [SteamGridDB](https://www.steamgriddb.com): the artwork.
+- [stb](https://github.com/nothings/stb), [bc7enc](https://github.com/richgel999/bc7enc) and [PyInstaller](https://github.com/pyinstaller/pyinstaller).
+
 ### Licences
 
 - The runtime is **GPL-3.0-or-later**: it links [PS5_Vulkan](https://github.com/mihawk-99/PS5_Vulkan)'s
@@ -576,6 +590,20 @@ Lo pendiente está en `TODO.md` (local, no se versiona).
 - GB5 no tiene servidores, telemetría ni cuentas. Lo que sale de tu equipo (SteamGridDB, GitHub, tu PS5,
   RetroAchievements a través de RA Hub) está en [PRIVACY.md](PRIVACY.md#espanol).
 - Todo en GB5 es gratis. Las donaciones en Ko-fi se agradecen, pero no desbloquean nada.
+
+### Agradecimientos
+
+GB5 se apoya en estos proyectos. Gracias a sus autores:
+
+- [gba-recomp](https://github.com/JRickey/gba-recomp) de JRickey: `gba-core` y `armv4t`, el núcleo de emulación.
+- [PS5_Vulkan](https://github.com/mihawk-99/PS5_Vulkan): el CRT, el platform layer y `libc.prx` del título.
+- [ps5-payload-sdk](https://github.com/ps5-payload-dev/sdk) y [elfldr](https://github.com/john-tornblom/ps5-payload-elfldr): los payloads en la consola.
+- [ShadowMountPlus](https://github.com/drakmor/ShadowMountPlus) de drakmor: pone los títulos en el menú de inicio.
+- [RetroAchievements](https://retroachievements.org) y [rcheevos](https://github.com/RetroAchievements/rcheevos).
+- [mGBA](https://github.com/mgba-emu/mgba): la tabla de tipo de guardado / hardware del cartucho y el comportamiento de referencia.
+- [libretro-database](https://github.com/libretro/libretro-database): los cheats.
+- [SteamGridDB](https://www.steamgriddb.com): el arte.
+- [stb](https://github.com/nothings/stb), [bc7enc](https://github.com/richgel999/bc7enc) y [PyInstaller](https://github.com/pyinstaller/pyinstaller).
 
 ### Licencias
 

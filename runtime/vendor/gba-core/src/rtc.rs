@@ -592,11 +592,11 @@ mod tests {
         let mut bytes = [0u8; 7];
         for byte in bytes.iter_mut() {
             let mut v = 0u8;
-            for _ in 0..8 {
+            for i in 0..8 {
                 rtc.write(0xC4, CS); // SCK low
                 rtc.write(0xC4, CS | SCK); // SCK high -> chip presents bit
                 let sio = (rtc.read(0xC4) >> 1) & 1;
-                v = (v << 1) | sio; // MSB-first
+                v |= sio << i; // data bytes come LSB first
             }
             *byte = v;
         }
@@ -620,19 +620,21 @@ mod tests {
         rtc.write(0xC6, 0b0111);
         rtc.write(0xC4, CS);
 
-        let send_byte = |rtc: &mut Rtc, val: u8| {
-            for i in (0..8).rev() {
+        let send_byte = |rtc: &mut Rtc, val: u8, msb_first: bool| {
+            for k in 0..8 {
+                let i = if msb_first { 7 - k } else { k };
                 let s = if (val >> i) & 1 != 0 { SIO } else { 0 };
                 rtc.write(0xC4, CS | s);
                 rtc.write(0xC4, CS | s | SCK);
             }
         };
-        // Command 0x64 = datetime write, then 7 BCD bytes for 2030-12-25
+        // Command 0x64 = datetime write (MSB first, as Pokémon RSE sends it),
+        // then 7 BCD bytes (LSB first, as the chip takes data) for 2030-12-25
         // 08:09:10, Wednesday(3), 24-hour mode already implied by hour byte.
-        send_byte(&mut rtc, 0x64);
+        send_byte(&mut rtc, 0x64, true);
         let want = [bcd(30), bcd(12), bcd(25), 3, bcd(8), bcd(9), bcd(10)];
         for b in want {
-            send_byte(&mut rtc, b);
+            send_byte(&mut rtc, b, false);
         }
         rtc.write(0xC4, 0);
 
