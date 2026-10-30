@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 enum { SIZE_PIXEL, SIZE_FILL, SIZE_STRETCH, SIZE_COUNT };  // integer x6 1440x960 / fill height 1620x1080 / 16:9
+enum { MP_AUDIO_TV_PADS, MP_AUDIO_TV, MP_AUDIO_PADS, MP_AUDIO_COUNT };  // with 2+ players: who hears what (main.c)
 
 struct settings {
   int size;   // SIZE_*
@@ -17,6 +18,7 @@ struct settings {
   int gyro_sens, tilt_sens;  // 1..10, 5 = mGBA's scale (x level / 5)
   int hardcore;  // RetroAchievements hardcore: no state loading, rewind or cheats; turning it on resets the game
   int lb_popups;  // RetroAchievements leaderboard notifications + trackers (off by default); RA lets players hide them
+  int mp_audio;   // MP_AUDIO_*: player 1 on the TV + the others on their controllers / TV only / controllers only
 };
 
 enum { MENU_NONE, MENU_CLOSED, MENU_RESET, MENU_QUIT, MENU_SAVE_STATE, MENU_LOAD_STATE, MENU_RECENTER, MENU_UPDATE_CHEATS, MENU_HARDCORE, MENU_PLAYERS };

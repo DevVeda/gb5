@@ -115,6 +115,7 @@ changed and skips (and reports) the ones that are open.
 | `--a-button cross\|circle` | which button is the GBA's A: ✕ (`cross`) or ○ (`circle`) |
 | `--lcd`, `--gba-colors` (`--no-lcd`…) | LCD grid / GBA screen colours |
 | `--hardcore`, `--lb-popups` (`--no-hardcore`…) | RetroAchievements hardcore mode / leaderboard alerts and trackers on screen (both off by default) |
+| `--mp-audio` | sound with 2+ players: `tv_pads` (player 1 on the TV, the others on their controllers; default), `tv` (player 1 only), `pads` (each on their own controller) |
 | `--save` | import a `.sav` (mGBA, VBA, cartridge). **After deploying, the first PS5 profile to open the game gets it, replacing its own** |
 | `--bios` | your BIOS; `--bios none` to leave it out |
 | `--title-id` | force the ID |
@@ -166,14 +167,19 @@ unique per game and version, so building again replaces the same icon. Codes wit
 - **Cheats**: turn them on and off one by one (all start off). **Update from the internet** fetches the
   game's latest file from libretro-database through RA Hub, without the computer, and keeps the ones you had on.
 - **Options**: size (16:9, fill height, integer ×6: every GBA pixel exactly 6×6), LCD grid, GBA colours,
-  A button ✕/○, hardcore, leaderboard alerts, and
+  A button ✕/○, hardcore, leaderboard alerts, multiplayer sound (below), and
   only in the games that have them: rumble on/off, sunlight, gyro axis and sensitivity, tilt sensitivity
   and levelling
 - **Turbo** ×1 / ×2 / ×4
 - **Players** < 1 2 3 4 >: each extra player turns on another DualSense and picks another PS5 user; they
   choose this game or any other GB5 title on the console (Ruby with Emerald, say) and play it from their
   own save in that title, joined by the link cable (trades, battles, races). 2 players side by side, 3-4
-  in a 2×2 grid. Sound is player 1's; load state and rewind are off while linked. Back with **1**
+  in a 2×2 grid. Load state and rewind are off while linked. Back with **1**.
+  **Options > Multi sound** picks who hears what: **TV + pads** (player 1 on the TV, every other player
+  their own game on their controller's speaker, or headphones in its jack), **TV only** (player 1), or
+  **Pads only** (each player on their controller; the TV stays free for music the PS5 plays in the
+  background). Headphones in any controller take the console's main sound too (PS5 Settings > Sound >
+  Audio Output > Output to Headphones), so with headphones use **Pads only**
 - **Reset**, **Quit**
 
 #### Cartridge hardware
@@ -427,6 +433,7 @@ Opciones de `build`:
 | `--a-button cross\|circle` | qué botón es la A de la GBA: ✕ (`cross`) u ○ (`circle`) |
 | `--lcd`, `--gba-colors` (`--no-lcd`…) | filtro LCD / colores de la pantalla de GBA |
 | `--hardcore`, `--lb-popups` (`--no-hardcore`…) | modo hardcore de RetroAchievements / avisos y marcadores de clasificaciones en pantalla (ambos apagados por defecto) |
+| `--mp-audio` | sonido con 2+ jugadores: `tv_pads` (jugador 1 en la TV, los demás en su mando; por defecto), `tv` (solo el jugador 1), `pads` (cada uno en su mando) |
 | `--save` | importar un `.sav` (mGBA, VBA, cartucho). **Tras desplegar, se lo queda el primer perfil de la PS5 que abra el juego, reemplazando el suyo** |
 | `--bios` | tu BIOS; `--bios none` para no incluirla |
 | `--title-id` | forzar el ID |
@@ -479,15 +486,19 @@ En **Opciones** se puede cambiar a A = ○, B = ✕ (las posiciones de Nintendo)
   baja la versión más reciente del juego en libretro-database a través de RA Hub, sin el computador, y mantiene
   activados los que tenías.
 - **Opciones**: tamaño (16:9, llenar alto, entero ×6: cada píxel de GBA mide exactamente 6×6), filtro LCD,
-  colores de GBA, botón A ✕/○, hardcore, avisos de clasificación,
+  colores de GBA, botón A ✕/○, hardcore, avisos de clasificación, sonido multijugador (abajo),
   y solo en los juegos que los tienen: vibración sí/no, sol, eje y sensibilidad del giroscopio,
   sensibilidad y centrado de la inclinación
 - **Turbo** ×1 / ×2 / ×4
 - **Jugadores** < 1 2 3 4 >: cada jugador extra enciende otro DualSense y elige otro usuario de la PS5;
   elige este juego u otro título de GB5 de la consola (Ruby con Emerald, por ejemplo) y juega con su propia
   partida de ese título, unidos por el cable link (intercambios, combates, carreras). 2 jugadores lado a
-  lado, 3-4 en una cuadrícula de 2×2. El sonido es del jugador 1; cargar estado y rebobinar no van mientras
-  están conectados. Se vuelve con **1**
+  lado, 3-4 en una cuadrícula de 2×2. Cargar estado y rebobinar no van mientras están conectados. Se vuelve
+  con **1**. **Opciones > Sonido multi** elige quién oye qué: **TV + mandos** (el jugador 1 en la TV y cada
+  uno de los demás su partida en el altavoz de su mando, o en los auriculares conectados a él), **Solo TV**
+  (el jugador 1) o **Solo mandos** (cada uno en su mando; la TV queda libre para música que la PS5 reproduzca
+  de fondo). Unos auriculares en cualquier mando se llevan también el sonido principal de la consola (Ajustes
+  de la PS5 > Sonido > Salida de audio > Salida a auriculares), así que con auriculares usa **Solo mandos**
 - **Reiniciar**, **Salir**
 
 #### Hardware del cartucho

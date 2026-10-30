@@ -137,6 +137,7 @@
       <label class="check"><input type="checkbox" name="hardcore"> <span data-t="hardcore"></span></label>
       <p class="hint" data-t="hardcore_hint"></p>
       <label class="check"><input type="checkbox" name="lb_popups"> <span data-t="lb_popups"></span></label>
+      <label><span data-t="mp_audio"></span> <select name="mp_audio"><option value="tv_pads" data-t="mpa_tv_pads"></option><option value="tv" data-t="mpa_tv"></option><option value="pads" data-t="mpa_pads"></option></select></label>
     </fieldset>
     <fieldset class="opts">
       <legend>SteamGridDB</legend>
@@ -172,6 +173,8 @@ const T = {
     size_pixel: 'Entero ×6 (píxeles perfectos)', abtn: 'Botón A', cross: '✕', circle: '○', lcd: 'Filtro LCD', colors: 'Colores de GBA', hardcore: 'Modo hardcore (RetroAchievements)',
     hardcore_hint: 'Sin cargar estados, rebobinar ni cheats. Activarlo dentro del juego lo reinicia. Los logros hardcore cuentan cuando RetroAchievements apruebe GB5.',
     lb_popups: 'Clasificaciones (leaderboards) en pantalla: avisos (iniciado, fallido, enviado, puesto) y marcadores',
+    mp_audio: 'Sonido con 2+ jugadores', mpa_tv_pads: 'TV (jugador 1) + mandos (los demás)', mpa_tv: 'Solo TV (jugador 1)',
+    mpa_pads: 'Solo mandos (cada uno su partida)',
     build: 'Crear y descargar .zip', host: 'IP de la PS5',
     deploy: 'Crear y subir a la PS5', update_all: 'Actualizar todos los juegos en la PS5',
     update_hint: 'Lleva el runtime más reciente (runtime/build.sh) a todos los juegos instalados en la PS5. Un juego abierto en la consola se salta.',
@@ -202,6 +205,8 @@ const T = {
     size_pixel: 'Integer ×6 (pixel perfect)', abtn: 'A button', cross: '✕', circle: '○', lcd: 'LCD grid', colors: 'GBA colours', hardcore: 'Hardcore mode (RetroAchievements)',
     hardcore_hint: 'No state loading, rewind or cheats. Turning it on in game resets it. Hardcore unlocks count once RetroAchievements approves GB5.',
     lb_popups: 'Leaderboards on screen: alerts (started, failed, submitted, rank) and trackers',
+    mp_audio: 'Sound with 2+ players', mpa_tv_pads: 'TV (player 1) + controllers (the others)', mpa_tv: 'TV only (player 1)',
+    mpa_pads: 'Controllers only (each their own game)',
     build: 'Create and download .zip', host: 'PS5 IP',
     deploy: 'Create and upload to the PS5', update_all: 'Update all games on the PS5',
     update_hint: 'Brings the latest runtime (runtime/build.sh) to every game installed on the PS5. A game open on the console is skipped.',
@@ -437,7 +442,7 @@ for (const b of document.querySelectorAll('.nav button')) b.onclick = () => show
 const s = $('s');
 let keySet = false;
 function fillSettings(d) {
-  s.size.value = d.size; s.a_button.value = d.a_button; s.lcd.checked = d.lcd; s.gba_colors.checked = d.gba_colors; s.hardcore.checked = d.hardcore; s.lb_popups.checked = d.lb_popups;
+  s.size.value = d.size; s.a_button.value = d.a_button; s.lcd.checked = d.lcd; s.gba_colors.checked = d.gba_colors; s.hardcore.checked = d.hardcore; s.lb_popups.checked = d.lb_popups; s.mp_audio.value = d.mp_audio;
   keySet = d.sgdb_key_set;
   s.sgdb_key.value = '';
   s.sgdb_key.placeholder = keySet ? t('key_set') : '';
@@ -464,7 +469,7 @@ async function postSettings(body) {
 $('biosRemove').onclick = () => postSettings({ bios_remove: true });
 s.addEventListener('submit', async e => {
   e.preventDefault();
-  const body = { size: s.size.value, a_button: s.a_button.value, lcd: s.lcd.checked, gba_colors: s.gba_colors.checked, hardcore: s.hardcore.checked, lb_popups: s.lb_popups.checked,
+  const body = { size: s.size.value, a_button: s.a_button.value, lcd: s.lcd.checked, gba_colors: s.gba_colors.checked, hardcore: s.hardcore.checked, lb_popups: s.lb_popups.checked, mp_audio: s.mp_audio.value,
                  sgdb_key: s.sgdb_key.value.trim() };
   if (s.bios.files[0]) body.bios = (await b64(s.bios.files[0])).data;
   postSettings(body);

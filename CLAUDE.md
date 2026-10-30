@@ -88,7 +88,7 @@ Not in git: `out/` (built titles), `ROMS/`, `bios/`, `cheatdb/` (cache), `settin
   "226" to DELE; that is accepted.
 - **Options precedence:** web Settings (`settings.json`) or CLI flags → `defaults.txt` in the title →
   `settings.txt` written by the in-game menu, which always wins.
-- **Settings tab:** GB5 Menu start options (size, A button, LCD, GBA colours, hardcore, leaderboard alerts), SteamGridDB key
+- **Settings tab:** GB5 Menu start options (size, A button, LCD, GBA colours, hardcore, leaderboard alerts, multiplayer sound), SteamGridDB key
   (never sent back to the page, only `sgdb_key_set`), GBA BIOS (saved as `bios/gba_bios.bin`, 16 KB,
   md5 check for the official one).
 - **Web build:** "Create and download .zip" builds, then the browser downloads `<name>_<ID>.zip` from
@@ -202,7 +202,10 @@ DEPLOY means `bash runtime/build.sh`, then `python3 gb5.py update-all --host <IP
   (needs DEPLOY + new RA Hub); in-game indicators, leaderboards and the offline queue (tested on the Mac
   against a fake RA Hub only). GB5 Menu → PLAYERS < 1-4 > (link cable; each extra player is another signed-in
   user's pad, any installed GB5 title from /data/homebrew with that user's save in that title; 2 side by side
-  ×4, 3-4 in a 2×2 grid ×3; sound from player 1; log.txt gets "players N ... ms per frame" once a second):
+  ×4, 3-4 in a 2×2 grid ×3; log.txt gets "players N ... ms per frame" once a second). Sound: OPTIONS > MULTI SOUND
+  (`mpaudio`, Settings `mp_audio`, `--mp-audio`): TV + pads / TV only / pads only. Each player's controller is a
+  PADSPK port (type 4, mono, opened at volume 0 so ours is set to 0 dB); PERSONAL (type 3) opens but never routes.
+  Headphones in any controller also take the main port (PS5 setting). The main port always runs: it paces the game:
   verified on console: 2 players (Ruby ↔ Emerald trade), 3 players (Mario Kart Super Circuit, ~8.3 ms/frame avg,
   10.1 max of 16.7, one thread); 4 not yet.
 - **Next big task:** the gba-recomp recompilation (ROM code → native x86 instead of gba-core's

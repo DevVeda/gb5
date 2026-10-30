@@ -73,6 +73,8 @@ int scePadSetVibration(int32_t handle, const uint8_t motors[2]);
 int sceAudioOutInit(void);
 int sceAudioOutOpen(int32_t user, int32_t type, int32_t index, uint32_t grain, uint32_t rate, uint32_t format);
 int sceAudioOutOutput(int32_t port, const void *samples);
+int sceAudioOutClose(int32_t port);
+int sceAudioOutSetVolume(int32_t port, int32_t channels, int32_t *vol);  // bit n = channel n; 32768 = 0 dB
 
 #define ROM_PATH "/app0/game.gba"
 #define BIOS_PATH "/app0/bios.bin"  // optional: the player's own GBA BIOS (16 KB), for the boot intro
@@ -225,60 +227,99 @@ static void present(const uint16_t *fb) {
   vlast = target;
 }
 
-// ---------------- audio: 65536 Hz from the GBA -> 48 kHz grains; the ring paces the emulation ----------------
+// ---------------- audio: 65536 Hz from the GBA -> 48 kHz grains; the main port's ring paces the emulation ----------------
 #define GRAIN 256
 #define RING 8192  // stereo frames, power of two
 #define AHEAD 2400 // ~50 ms queued before the game waits: audio is the clock, so it never drifts
-static int16_t ring[RING * 2];
-static atomic_uint ring_r, ring_w;
-static int32_t aport = -1;
+#define MAX_PLAYERS 4
+// Outputs: [0] the main port (the TV, or the console's headphones), [1 + p] player p's controller (PADSPK:
+// its speaker, or headphones in its jack), open while players are linked. Each has its own ring and thread.
+// OPTIONS > MULTIPLAYER SOUND (st.mp_audio) picks which play what.
+static struct aout {
+  int16_t ring[RING * 2];
+  atomic_uint r, w;
+  atomic_int port;  // -1: none
+  int mono;  // the port takes mono samples (PADSPK)
+  atomic_int mute;  // plays silence but still paces (the main port when only controllers sound)
+  int16_t last[2];
+  double pos;  // in input frames, relative to `last` at index -1
+  int thread;  // its thread runs
+} aouts[1 + MAX_PLAYERS];
 
 static void *audio_main(void *arg) {
-  (void)arg;
-  static int16_t grain[GRAIN * 2] __attribute__((aligned(64)));
+  struct aout *a = arg;
+  int16_t grain[GRAIN * 2] __attribute__((aligned(64)));
   for (;;) {
-    unsigned r = atomic_load(&ring_r), avail = atomic_load(&ring_w) - r;
+    int port = atomic_load(&a->port);
+    if (port < 0) { sceKernelUsleep(5000); continue; }
+    unsigned r = atomic_load(&a->r), avail = atomic_load(&a->w) - r;
+    int mute = atomic_load(&a->mute);
     for (unsigned i = 0; i < GRAIN; i++) {
-      int have = i < avail;  // underrun: silence
-      grain[i * 2] = have ? ring[(r + i) % RING * 2] : 0;
-      grain[i * 2 + 1] = have ? ring[(r + i) % RING * 2 + 1] : 0;
+      int have = i < avail && !mute;  // underrun or muted: silence
+      int16_t L = have ? a->ring[(r + i) % RING * 2] : 0, R = have ? a->ring[(r + i) % RING * 2 + 1] : 0;
+      if (a->mono) grain[i] = (int16_t)((L + R) / 2);
+      else grain[i * 2] = L, grain[i * 2 + 1] = R;
     }
-    atomic_store(&ring_r, r + (avail < GRAIN ? avail : GRAIN));
-    if (sceAudioOutOutput(aport, grain) < 0) sceKernelUsleep(5000);  // blocks one grain
+    atomic_store(&a->r, r + (avail < GRAIN ? avail : GRAIN));
+    if (sceAudioOutOutput(port, grain) < 0) sceKernelUsleep(5000);  // blocks one grain
   }
   return NULL;
 }
 
-static void audio_init(void) {
+// Hands `port` to output o (its thread starts the first time); what was queued is dropped.
+static void audio_port(int o, int port, int mono) {
+  struct aout *a = &aouts[o];
   pthread_t t;
-  int rc = sceAudioOutInit();
-  if (rc < 0 && rc != (int)0x8026000e) { say("sceAudioOutInit 0x%x", rc); return; }
-  if ((aport = sceAudioOutOpen(0xff, 0, 0, GRAIN, 48000, 1)) < 0) { say("sceAudioOutOpen 0x%x", aport); aport = -1; return; }
-  pthread_create(&t, NULL, audio_main, NULL);
+  a->mono = mono;
+  atomic_store(&a->r, atomic_load(&a->w));
+  a->pos = 0;
+  a->last[0] = a->last[1] = 0;
+  atomic_store(&a->port, port);
+  if (!a->thread) a->thread = pthread_create(&t, NULL, audio_main, a) == 0;
 }
 
-// Linear resample of what the frame produced; the fractional position carries over.
-static void audio_push(void *m) {
-  static int16_t in[4096 * 2];
-  static int16_t last[2];
-  static double pos;  // in input frames, relative to `last` at index -1
-  size_t n = gba_audio(m, in, sizeof in / sizeof *in) / 2;
-  if (aport < 0 || !n) return;
+static void audio_close(int o) {
+  int port = atomic_exchange(&aouts[o].port, -1);
+  if (port >= 0) sceAudioOutClose(port);
+}
+
+// Player p's controller (output 1 + p): the PADSPK port of their PS5 user, mono. It opens at volume 0, so
+// ours is set to 0 dB; the controller's own volume (PS5 settings) still applies.
+static void audio_pad_open(int p, int32_t user) {
+  if (atomic_load(&aouts[1 + p].port) >= 0) return;
+  int port = sceAudioOutOpen(user, 4, 0, GRAIN, 48000, 0), rc = 0;
+  int32_t vol[8] = {32768, 32768, 32768, 32768, 32768, 32768, 32768, 32768};
+  if (port >= 0 && (rc = sceAudioOutSetVolume(port, 1, vol)) < 0) say("player %d: controller sound volume 0x%x", p + 1, rc);
+  say("player %d: controller sound %s (0x%x)", p + 1, port >= 0 ? "on" : "unavailable", port);
+  if (port >= 0) audio_port(1 + p, port, 1);
+}
+
+static void audio_init(void) {
+  for (int o = 0; o <= MAX_PLAYERS; o++) atomic_store(&aouts[o].port, -1);
+  int rc = sceAudioOutInit(), port;
+  if (rc < 0 && rc != (int)0x8026000e) { say("sceAudioOutInit 0x%x", rc); return; }
+  if ((port = sceAudioOutOpen(0xff, 0, 0, GRAIN, 48000, 1)) < 0) { say("sceAudioOutOpen 0x%x", port); return; }
+  audio_port(0, port, 0);
+}
+
+// Linear resample of n frames into output a; the fractional position carries over.
+static void audio_feed(struct aout *a, const int16_t *in, size_t n) {
+  if (atomic_load(&a->port) < 0 || !n) return;
   const double step = 65536.0 / 48000.0;
-  unsigned w = atomic_load(&ring_w);
-  for (; pos < n - 1; pos += step) {
-    int i = (int)pos;  // i may be -1: interpolate from the previous frame's last sample
-    double f = pos - i;
+  unsigned w = atomic_load(&a->w);
+  for (; a->pos < n - 1; a->pos += step) {
+    int i = (int)a->pos;  // i may be -1: interpolate from the previous frame's last sample
+    double f = a->pos - i;
     for (int c = 0; c < 2; c++) {
-      double a = i < 0 ? last[c] : in[i * 2 + c], b = in[(i + 1) * 2 + c];
-      ring[w % RING * 2 + c] = (int16_t)(a + (b - a) * f);
+      double x = i < 0 ? a->last[c] : in[i * 2 + c], y = in[(i + 1) * 2 + c];
+      a->ring[w % RING * 2 + c] = (int16_t)(x + (y - x) * f);
     }
-    if (w - atomic_load(&ring_r) < RING - 1) w++;  // full: drop
+    if (w - atomic_load(&a->r) < RING - 1) w++;  // full: drop
   }
-  atomic_store(&ring_w, w);
-  last[0] = in[(n - 1) * 2];
-  last[1] = in[(n - 1) * 2 + 1];
-  pos -= n;
+  atomic_store(&a->w, w);
+  a->last[0] = in[(n - 1) * 2];
+  a->last[1] = in[(n - 1) * 2 + 1];
+  a->pos -= n;
 }
 
 // ---------------- pad ----------------
@@ -503,7 +544,6 @@ static void user_files(int32_t user) {
 }
 
 // ---------------- PLAYERS 2-4: more GBAs on the link cable, each another PS5 user's controller and save ----------------
-#define MAX_PLAYERS 4
 static void *ms[MAX_PLAYERS], *link_;  // ms[0] is player 1's machine; link_ is set while np > 1
 static int np = 1;                        // players
 static int pads[MAX_PLAYERS] = {-1, -1, -1, -1};  // [0] unused: player 1 is `pad`
@@ -613,6 +653,7 @@ static const char *player_add(int game, const uint8_t *rom, size_t rom_len, cons
   pads[p] = pad_n;
   users[p] = u;
   hashes[p] = 0;
+  audio_pad_open(p, u);
   say("player %d: user %08x, %s, %s", p + 1, (uint32_t)u, game ? games[game].id : "this game", sav ? "save loaded" : "new save");
   return NULL;
 }
@@ -627,6 +668,7 @@ static const char *players_set(void *m, int32_t user, int want, const uint8_t *r
   users[0] = user;
   while (np > want) {
     np--;
+    audio_close(1 + np);
     save_flush(ms[np], savs[np], &hashes[np]);
     gba_free(ms[np]);
     ms[np] = NULL;
@@ -634,7 +676,9 @@ static const char *players_set(void *m, int32_t user, int want, const uint8_t *r
     pads[np] = -1;
   }
   while (np < want && !(why = player_add(menu_game(np), rom, rom_len, bios, bios_len, es))) {}
-  if (np > 1) link_ = gba_link_new(ms, (size_t)np);  // ponytail: a game mid-session sees the cable unplugged and back
+  if (np > 1) link_ = gba_link_new(ms, (size_t)np);
+  if (np > 1) audio_pad_open(0, user);  // player 1's controller, for MULTIPLAYER SOUND = CONTROLLERS
+  else audio_close(1);  // ponytail: a game mid-session sees the cable unplugged and back
   fbw = np > 1 ? 480 : 240;
   fbh = np > 2 ? 320 : 160;
   if (np == 3)  // the 4th quadrant stays black
@@ -771,7 +815,7 @@ int main(void) {
         continue;
       }
     }
-    while (aport >= 0 && atomic_load(&ring_w) - atomic_load(&ring_r) > AHEAD) sceKernelUsleep(1000);
+    while (atomic_load(&aouts[0].port) >= 0 && atomic_load(&aouts[0].w) - atomic_load(&aouts[0].r) > AHEAD) sceKernelUsleep(1000);
     struct timespec t0, t1;
     if (np > 1) clock_gettime(CLOCK_MONOTONIC, &t0);
     // TURBO runs several GBA frames per shown frame; only the last one's sound is played, so the
@@ -791,8 +835,8 @@ int main(void) {
         rewind_record(m, fb);
       }
       ra_frame();  // RetroAchievements: player 1
-      if (t + 1 < st.turbo) gba_audio(m, scratch, sizeof scratch / sizeof *scratch);
-      for (int p = 1; p < np; p++) gba_audio(ms[p], scratch, sizeof scratch / sizeof *scratch);  // sound: player 1's only
+      if (t + 1 < st.turbo)  // only the last frame's sound plays
+        for (int p = 0; p < np; p++) gba_audio(p ? ms[p] : m, scratch, sizeof scratch / sizeof *scratch);
       if (frame % 30 == 0) {  // ~0.5 s after the game saves; writes only when it changed
         save_flush(m, sav_path, &hash1);
         for (int p = 1; p < np; p++) save_flush(ms[p], savs[p], &hashes[p]);
@@ -809,7 +853,16 @@ int main(void) {
         emu_n = 0;
       }
     }
-    audio_push(m);
+    {  // the sound: TV + CONTROLLERS (player 1 on the main port, the others on theirs), TV ONLY, CONTROLLERS ONLY
+      static int16_t in[4096 * 2];
+      int pads = np > 1 && st.mp_audio != MP_AUDIO_TV, tv = np == 1 || st.mp_audio != MP_AUDIO_PADS;
+      atomic_store(&aouts[0].mute, !tv);  // still fed: it paces the game
+      for (int p = 0; p < np; p++) {
+        size_t n = gba_audio(p ? ms[p] : m, in, sizeof in / sizeof *in) / 2;
+        if (!p) audio_feed(&aouts[0], in, n);
+        if (pads && (p || !tv)) audio_feed(&aouts[1 + p], in, n);  // unfed: it plays silence
+      }
+    }
     if (hw & HW_RUMBLE) {  // the share of these frames the cart's motor was on; OPTIONS > RUMBLE can mute it
       int duty = gba_hw_rumble(m);
       rumble(st.rumble ? duty : 0);

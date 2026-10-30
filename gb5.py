@@ -212,11 +212,12 @@ SAVE_SIZES = {"sram": (32768,), "sram64": (65536,), "flash64": (65536,), "flash1
 
 
 SIZES = {"pixel": 0, "fill": 1, "16:9": 2}  # runtime/ps5/menu.h SIZE_*
-OPTION_KEYS = ("size", "a_button", "lcd", "gba_colors", "hardcore", "lb_popups")  # build()'s GB5 Menu options, from Settings or flags
+MP_AUDIO = {"tv_pads": 0, "tv": 1, "pads": 2}  # runtime/ps5/menu.h MP_AUDIO_*: who hears what with 2+ players
+OPTION_KEYS = ("size", "a_button", "lcd", "gba_colors", "hardcore", "lb_popups", "mp_audio")  # build()'s GB5 Menu options, from Settings or flags
 
 
 def build(rom_path, name=None, icon=None, hero=None, launch=None, music=None, eboot=None, out="out", tid=None, bios=None, rom_name=None, save=None,
-          size="16:9", a_button="cross", lcd=False, gba_colors=False, hardcore=False, lb_popups=False):
+          size="16:9", a_button="cross", lcd=False, gba_colors=False, hardcore=False, lb_popups=False, mp_audio="tv_pads"):
     rom = read_rom(rom_path)
     if len(rom) < 0xC0 or len(rom) > 32 * 1024 * 1024 or rom[0xB2] != 0x96:
         raise ValueError("not a GBA ROM (bad size or header byte 0xB2 != 0x96)")
@@ -242,13 +243,13 @@ def build(rom_path, name=None, icon=None, hero=None, launch=None, music=None, eb
         print("aviso: el cartucho usa %s, que no se emula: partes del juego pueden no funcionar" % ", ".join(missing), file=sys.stderr)
     (d / "game.gba").write_bytes(rom)
     # The game's starting options (the in-game OPTIONS menu still changes them; what the player sets wins).
-    if size not in SIZES or a_button not in ("cross", "circle"):
-        raise ValueError("size must be pixel, fill or 16:9; a_button cross or circle")
-    (d / "defaults.txt").write_text("size=%d\nlcd=%d\ncolor=%d\nswapab=%d\nhardcore=%d\nlbpopups=%d\n" % (
-        SIZES[size], bool(lcd), bool(gba_colors), a_button == "cross", bool(hardcore), bool(lb_popups)))
-    print("opciones: tamaño %s, A = %s, LCD %s, colores GBA %s, hardcore %s, avisos de clasificación %s" % (
+    if size not in SIZES or a_button not in ("cross", "circle") or mp_audio not in MP_AUDIO:
+        raise ValueError("size must be pixel, fill or 16:9; a_button cross or circle; mp_audio tv_pads, tv or pads")
+    (d / "defaults.txt").write_text("size=%d\nlcd=%d\ncolor=%d\nswapab=%d\nhardcore=%d\nlbpopups=%d\nmpaudio=%d\n" % (
+        SIZES[size], bool(lcd), bool(gba_colors), a_button == "cross", bool(hardcore), bool(lb_popups), MP_AUDIO[mp_audio]))
+    print("opciones: tamaño %s, A = %s, LCD %s, colores GBA %s, hardcore %s, avisos de clasificación %s, sonido multijugador %s" % (
           size, "✕" if a_button == "cross" else "○", "sí" if lcd else "no", "sí" if gba_colors else "no", "sí" if hardcore else "no",
-          "sí" if lb_popups else "no"))
+          "sí" if lb_popups else "no", {"tv_pads": "TV + mandos", "tv": "solo TV", "pads": "solo mandos"}[mp_audio]))
     if save:  # a .sav from another emulator or a cartridge dump (raw, the usual format)
         data = Path(save).read_bytes()
         if not data:
@@ -485,7 +486,8 @@ def smp_once(ftp, host, lines, elfldr_port):
 
 
 SETTINGS = ROOT / "settings.json"  # the web UI's Settings tab; never in git (it holds the API key)
-SETTINGS_DEFAULT = {"sgdb_key": "", "size": "16:9", "a_button": "cross", "lcd": False, "gba_colors": False, "hardcore": False, "lb_popups": False}
+SETTINGS_DEFAULT = {"sgdb_key": "", "size": "16:9", "a_button": "cross", "lcd": False, "gba_colors": False, "hardcore": False, "lb_popups": False,
+                    "mp_audio": "tv_pads"}
 
 
 def load_settings():
@@ -527,6 +529,10 @@ def save_settings(new):
         if new["a_button"] not in ("cross", "circle"):
             raise ValueError("a_button: " + str(new["a_button"]))
         s["a_button"] = new["a_button"]
+    if new.get("mp_audio") is not None:
+        if new["mp_audio"] not in MP_AUDIO:
+            raise ValueError("mp_audio: " + str(new["mp_audio"]))
+        s["mp_audio"] = new["mp_audio"]
     for k in ("lcd", "gba_colors", "hardcore", "lb_popups"):
         if new.get(k) is not None:
             s[k] = bool(new[k])
@@ -692,6 +698,8 @@ def main():
     b.add_argument("--gba-colors", action=argparse.BooleanOptionalAction, help="GBA screen colours")
     b.add_argument("--hardcore", action=argparse.BooleanOptionalAction, help="start in RetroAchievements hardcore mode")
     b.add_argument("--lb-popups", action=argparse.BooleanOptionalAction, help="RetroAchievements leaderboard notifications (default on)")
+    b.add_argument("--mp-audio", choices=list(MP_AUDIO),
+                   help="sound with 2+ players: tv_pads (player 1 on the TV, the others on their controllers), tv (player 1 only), pads (each on their controller)")
     b.add_argument("--save", help="import a .sav (raw, as mGBA/VBA/cartridge dumps); replaces the console's save on deploy")
     b.add_argument("--bios", help="your own GBA BIOS (16 KB) for the boot intro; default bios/gba_bios.bin if present, 'none' to skip")
     b.add_argument("--sgdb", action="store_true", help="name, icon and hero from SteamGridDB (what you pass wins)")
