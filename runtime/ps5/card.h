@@ -14,6 +14,9 @@ const uint32_t *card_sun(int level, int es);
 
 // Queue a card for an unlock; fetches the badge through RA Hub on a thread. Any thread.
 void card_unlock(const char *title, unsigned points, const char *badge, int es);
+// A notice in the same toast and queue as the unlocks: a gold "RA" tile, `head` in white and `body` ("" for none,
+// up to two lines) in grey under it. Any thread.
+void card_notice(const char *head, const char *body);
 // Once per presented frame, main thread: the card to draw now (CARD_W x CARD_H, VideoOut bytes R,G,B,A,
 // alpha in the top byte: blend it), or NULL.
 const uint32_t *card_frame(void);

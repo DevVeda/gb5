@@ -208,9 +208,10 @@ With [RA Hub](https://github.com/DevVeda/rahub) running on the PS5 and signed in
 - The game takes the session from `127.0.0.1:8045/session`.
 - All its RetroAchievements calls go through `/dorequest`, since the title has no TLS of its own.
 - Badges come from `/badge` and cheat updates from `/cheats`.
-- An unlock shows a toast like the PS5's trophy one (badge + name), top right.
+- An unlock shows a toast like the PS5's trophy one (badge + name), top right. RetroAchievements notices
+  (connected, offline, hardcore, leaderboards) use the same toast with a gold "RA" tile.
 - Bottom right, while they apply: measured progress (`3/10`, a few seconds) and active challenges.
-  Leaderboards on screen (trackers bottom right; started, failed, submitted, your rank as notifications)
+  Leaderboards on screen (trackers bottom right; started, failed, submitted, your rank as toasts top right)
   are off by default (some run the whole game); turn them on in Settings or Veda Menu → Options.
   Leaderboards run and submit either way.
 - **Offline:** a game that was started online once also starts without a connection. Unlocks and
@@ -528,10 +529,11 @@ Con [RA Hub](https://github.com/DevVeda/rahub) corriendo en la PS5 y la sesión 
 - El juego toma la sesión de `127.0.0.1:8045/session`.
 - Todas sus llamadas a RetroAchievements pasan por `/dorequest`, porque el título no tiene TLS propio.
 - Los badges llegan por `/badge` y la actualización de cheats por `/cheats`.
-- Al desbloquear un logro sale un aviso como el de trofeos de la PS5 (badge + nombre), arriba a la derecha.
+- Al desbloquear un logro sale un aviso como el de trofeos de la PS5 (badge + nombre), arriba a la derecha. Los
+  avisos de RetroAchievements (conectado, sin conexión, hardcore, clasificaciones) usan el mismo aviso con un cuadro "RA" dorado.
 - Abajo a la derecha, mientras aplican: progreso medido (`3/10`, unos segundos) y retos activos. Las
   clasificaciones (leaderboards) en pantalla (marcadores abajo a la derecha; iniciado, fallido, enviado y tu
-  puesto como notificaciones) vienen apagadas (algunas duran todo el juego); se encienden en Ajustes o
+  puesto como avisos arriba a la derecha) vienen apagadas (algunas duran todo el juego); se encienden en Ajustes o
   Veda Menu → Opciones. Las clasificaciones funcionan y se envían igual.
 - **Sin conexión:** un juego que ya arrancó una vez con conexión también arranca sin ella. Los logros y
   las entradas de clasificación que RetroAchievements no ha confirmado se guardan en `ra_pending.txt` y se

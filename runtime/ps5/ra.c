@@ -28,8 +28,6 @@
 void say(const char *fmt, ...);
 uint32_t gba_ra_read(const void *m, uint32_t addr, uint8_t *out, uint32_t n);
 
-typedef struct { char useless[45]; char message[3075]; } notify_request_t;  // as Payload Manager / RA Hub
-int sceKernelSendNotificationRequest(int device, notify_request_t *req, size_t size, int unused);
 int sceSystemServiceParamGetInt(int param_id, int *value);
 
 static rc_client_t *client;
@@ -52,14 +50,18 @@ static char pending_path[192];
 // RetroAchievements identifies the emulator by this (unique, numeric version); RA Hub forwards it.
 #define USER_AGENT "GB5/" GB5_VERSION " (PS5) gba-core/" CORE_VERSION " rcheevos/" RCHEEVOS_VERSION_STRING
 
+// A notice in the in-game toast (card.c), not the PS5's notification: "head\nbody", or "RetroAchievements: body"
+// shown as head "RetroAchievements" and the rest under it.
 static void notify(const char *fmt, ...) {
-  notify_request_t nr = {0};
+  char msg[512], *body;
   va_list ap;
   va_start(ap, fmt);
-  vsnprintf(nr.message, sizeof nr.message, fmt, ap);
+  vsnprintf(msg, sizeof msg, fmt, ap);
   va_end(ap);
-  say("ra: %s", nr.message);
-  sceKernelSendNotificationRequest(0, &nr, sizeof nr, 0);
+  say("ra: %s", msg);
+  if ((body = strchr(msg, '\n'))) *body++ = 0;
+  else if (!strncmp(msg, "RetroAchievements: ", 19)) msg[17] = 0, body = msg + 19;
+  card_notice(msg, body);
 }
 
 // One HTTP/1.0 exchange with RA Hub. Returns the malloc'd body (NUL-terminated, caller frees) and sets
@@ -429,8 +431,8 @@ static void on_load(int result, const char *err, rc_client_t *c, void *ud) {
   rc_client_user_game_summary_t s;
   rc_client_get_user_game_summary(c, &s);
   int hc = rc_client_get_hardcore_enabled(c);  // RA's rule: say which mode the game started in
-  notify(es ? "%s RetroAchievements (%s)\n%u de %u logros conseguidos" : "%s RetroAchievements (%s)\n%u of %u achievements unlocked",
-         offline ? (es ? "Sin conexión con" : "Offline from") : (es ? "Conectado a" : "Connected to"),
+  notify(es ? "RetroAchievements: %s, %s. %u de %u logros conseguidos" : "RetroAchievements: %s, %s. %u of %u achievements unlocked",
+         offline ? (es ? "Sin conexión" : "Offline") : (es ? "Conectado" : "Connected"),
          hc ? "hardcore" : "casual", s.num_unlocked_achievements, s.num_core_achievements);
   loaded = 1;
 }

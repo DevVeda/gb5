@@ -123,14 +123,16 @@ Not in git: `out/` (built titles), `ROMS/`, `bios/`, `cheatdb/` (cache), `settin
   - Set in Settings or Veda Menu → Options.
   - Blocks loading states, rewind (L3) and cheats. Saving states and turbo are allowed.
   - Turning it on in game resets the game; turning it off is free.
-  - The connect notification says hardcore or casual.
+  - The connect notice says hardcore or casual.
 - **RA approval:** until RA approves GB5 ("hardcore-compliant"), its server says "Unknown Emulator"
   and only casual unlocks count. Requests open from late April 2027 (6 months after v0.1.0). Everything
   in the checklist is done in code (TODO.md): hardcore, unique User-Agent with the core, `PRIVACY.md`,
   licences with upstream links, "everything is free", in-game indicators, leaderboards, offline queue.
+- **Notices:** `notify()` in ra.c → `card_notice()`: the unlock toast top right with a gold "RA" tile, not the PS5's
+  notifications. "head\nbody", or "RetroAchievements: body".
 - **In-game indicators:** `ra_hud()` (ra.c state) → `card_hud()` (card.c pixels) → drawn bottom right in
   `present()`: leaderboard trackers, challenges, measured progress (rcheevos hides it after 2 s).
-  Leaderboard started/failed/submitted/rank are console notifications, off with `lbpopups=0` (Settings
+  Leaderboard started/failed/submitted/rank are notices, off with `lbpopups=0` (Settings
   `lb_popups`, `--no-lb-popups`, OPTIONS > LEADERBOARD ALERTS; RA allows it). Leaderboards run in hardcore only.
 - **Offline:** `call_main` caches `achievementsets` / `startsession` answers in `ra_<r>_<user>.json` and serves
   them (plus a login2 built from RA Hub's session) when RA doesn't answer. Unanswered calls go to rcheevos as

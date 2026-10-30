@@ -1,5 +1,5 @@
-// The in-game achievement card: badge, "ACHIEVEMENT UNLOCKED", title and points, drawn in the black
-// border right of the GBA picture for a few seconds. Badges come through RA Hub (GET /badge?u=<name>).
+// The in-game toast, top right for a few seconds: an unlock (badge + name) or a RetroAchievements notice
+// (gold "RA" tile + text), instead of the PS5's own notifications. Badges come through RA Hub (GET /badge?u=<name>).
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "card.h"
 #include <pthread.h>
@@ -155,6 +155,30 @@ uint32_t *card_compose(const char *title, unsigned points, const uint8_t *png, s
   return px;
 }
 
+// The notice: same pill, a gold tile with "RA" where the badge goes, the head on one line, the body on two.
+static uint32_t *notice_compose(const char *head, const char *body) {
+  uint32_t *px = malloc(sizeof(uint32_t) * CARD_W * CARD_H);
+  if (!px) return NULL;
+  struct canvas cv = {px, CARD_W, CARD_H};
+  for (int y = 0; y < CARD_H; y++)
+    for (int x = 0; x < CARD_W; x++) px[y * CARD_W + x] = inside(x, y) ? PILL : 0;
+  const int B = 64, bx = 16, by = (CARD_H - B) / 2;
+  fill(&cv, bx + 2, by, B - 4, B, EDGE);  // corners cut by a pixel
+  fill(&cv, bx, by + 2, B, B - 4, EDGE);
+  text(&cv, bx + (B - 3 * stb_easy_font_width("RA")) / 2, by + 20, 3, "RA", BG);
+  int tx = bx + B + 16, tw = CARD_W - tx - 16;
+  if (!body[0]) {  // head only: up to two lines, centred
+    char buf[512];
+    text_ascii(buf, sizeof buf, head);
+    int lines = stb_easy_font_width(buf) * 2 <= tw ? 1 : 2;
+    wrapped(&cv, tx, (CARD_H - lines * 24) / 2 + 4, 2, tw, lines, head, WHITE);
+  } else {
+    int y = wrapped(&cv, tx, 14, 2, tw, 1, head, WHITE);
+    wrapped(&cv, tx, y + 4, 2, tw, 2, body, DIM);
+  }
+  return px;
+}
+
 const uint32_t *card_sun(int level, int es) {
   static uint32_t px[SUN_W * SUN_H];
   struct canvas cv = {px, SUN_W, SUN_H};
@@ -256,20 +280,25 @@ struct job {
   unsigned points;
 };
 
+static void push(uint32_t *px) {
+  unsigned w = atomic_fetch_add(&ready_w, 1);
+  if (px && w - atomic_load(&ready_r) < QUEUE) atomic_store(&ready[w % QUEUE], px);
+  else free(px);  // ponytail: more than 8 toasts waiting drop the extras
+}
+
 static void *job_main(void *arg) {
   struct job *j = arg;
   char path[64];
   size_t len = 0;
   snprintf(path, sizeof path, "/badge?u=%s", j->badge);
   char *png = j->badge[0] ? ra_hub_get(path, &len) : NULL;
-  uint32_t *px = card_compose(j->title, j->points, (const uint8_t *)png, len, lang_es);
+  push(card_compose(j->title, j->points, (const uint8_t *)png, len, lang_es));
   free(png);
-  unsigned w = atomic_fetch_add(&ready_w, 1);
-  if (px && w - atomic_load(&ready_r) < QUEUE) atomic_store(&ready[w % QUEUE], px);
-  else free(px);  // ponytail: more than 8 unlocks in flight drop the extras' cards
   free(j);
   return NULL;
 }
+
+void card_notice(const char *head, const char *body) { push(notice_compose(head, body ? body : "")); }
 
 void card_unlock(const char *title, unsigned points, const char *badge, int es) {
   struct job *j = calloc(1, sizeof *j);
