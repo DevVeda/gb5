@@ -129,7 +129,7 @@ Not in git: `out/` (built titles), `ROMS/`, `bios/`, `cheatdb/` (cache), `settin
   in the checklist is done in code (TODO.md): hardcore, unique User-Agent with the core, `PRIVACY.md`,
   licences with upstream links, "everything is free", in-game indicators, leaderboards, offline queue.
 - **Notices:** `notify()` in ra.c → `card_notice()`: the unlock toast top right with a gold "RA" tile, not the PS5's
-  notifications. "head\nbody", or "RetroAchievements: body".
+  notifications. "head\nbody", or "RetroAchievements: body". Verified on console.
 - **In-game indicators:** `ra_hud()` (ra.c state) → `card_hud()` (card.c pixels) → drawn bottom right in
   `present()`: leaderboard trackers, challenges, measured progress (rcheevos hides it after 2 s).
   Leaderboard started/failed/submitted/rank are notices, off with `lbpopups=0` (Settings
