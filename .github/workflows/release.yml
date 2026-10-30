@@ -36,7 +36,7 @@ jobs:
             --add-data "web/index.html:web" --add-data "assets/logo.svg:assets" \
             --add-data "runtime/overrides.tsv:runtime" --add-data "runtime/dist:runtime/dist" \
             --add-data "tools/register.elf:tools" --add-binary "$MKSYS:." gb5.py
-          mkdir gb5 && cp dist/gb5* gb5/ && cp README.md gb5/
+          mkdir gb5 && cp dist/gb5* gb5/ && cp README.md LICENSE gb5/
           python -m zipfile -c "gb5-${{ matrix.name }}.zip" gb5/
       - name: upload
         env:

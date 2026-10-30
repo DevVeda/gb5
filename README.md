@@ -298,7 +298,10 @@ GB5 stands on these projects. Thank you to their authors:
 
 ### Licences
 
-- The runtime is **GPL-3.0-or-later**: it links [PS5_Vulkan](https://github.com/mihawk-99/PS5_Vulkan)'s
+- **GB5 is free software under the GPL-3.0-or-later** ([`LICENSE`](LICENSE)): the CLI, the web UI, the tools
+  and the runtime. Use it, study it, change it, fork it and share it; changed versions you distribute must
+  stay open under the same licence. Third-party parts keep their own licences, listed below.
+- The runtime has to be GPL anyway: it links [PS5_Vulkan](https://github.com/mihawk-99/PS5_Vulkan)'s
   CRT and platform layer. `sce_module/libc.prx` is GPL-3.0-or-later too, generated from that repo's source
   (see its [`runtime/README.md`](https://github.com/mihawk-99/PS5_Vulkan/blob/main/runtime/README.md)).
 - [`gba-core` and `armv4t`](https://github.com/JRickey/gba-recomp) (the emulation core, patched): MIT / Apache-2.0.
@@ -607,7 +610,10 @@ GB5 se apoya en estos proyectos. Gracias a sus autores:
 
 ### Licencias
 
-- El runtime es **GPL-3.0-or-later**: enlaza con el CRT y el platform layer de
+- **GB5 es software libre bajo la GPL-3.0-or-later** ([`LICENSE`](LICENSE)): la CLI, la web, las herramientas
+  y el runtime. Úsalo, estúdialo, cámbialo, haz forks y compártelo; las versiones modificadas que distribuyas
+  tienen que seguir abiertas con la misma licencia. Las partes de terceros conservan sus licencias, abajo.
+- El runtime tiene que ser GPL de todos modos: enlaza con el CRT y el platform layer de
   [PS5_Vulkan](https://github.com/mihawk-99/PS5_Vulkan). `sce_module/libc.prx` también es GPL-3.0-or-later,
   generado desde el código de ese repo (ver su [`runtime/README.md`](https://github.com/mihawk-99/PS5_Vulkan/blob/main/runtime/README.md)).
 - [`gba-core` y `armv4t`](https://github.com/JRickey/gba-recomp) (el núcleo de emulación, parcheado): MIT / Apache-2.0.

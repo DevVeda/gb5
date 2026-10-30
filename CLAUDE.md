@@ -64,6 +64,7 @@ tools/register.c       payload sent to elfldr (9021): registers/unregisters titl
 tools/register.elf     prebuilt, committed
 .github/workflows/release.yml  tag v* → PyInstaller one-file builds for linux-x64, macos-arm64, windows-x64
 PRIVACY.md             privacy policy (EN/ES), required by RetroAchievements
+LICENSE                GPL-3.0 text: all of GB5 is GPL-3.0-or-later (third-party parts keep theirs)
 TODO.md                backlog, Spanish, NOT in git
 ```
 
@@ -187,7 +188,7 @@ DEPLOY means `bash runtime/build.sh`, then `python3 gb5.py update-all --host <IP
 - Versions: v0.1.0 (first), v0.2.0 (Settings tab). Next is v0.2.1 or v0.3.0 (zip download, hardcore,
   integer naming).
 - README: bilingual, logo + Ko-fi button at the top, "AI disclosure" / "Uso de IA" sections, licenses.
-  GPL-3.0-or-later runtime.
+  All of GB5 is GPL-3.0-or-later (`LICENSE`, also in the release zips).
 
 ## Status
 
