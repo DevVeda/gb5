@@ -1,5 +1,5 @@
-// The extra menu (L2 + R2): drawn at GBA resolution over the paused game, in the style of
-// Pokémon's start menu, for every game (menu.c).
+// Veda Menu (L2 + R2): drawn at GBA resolution over the paused game, in the style of Pokémon's
+// OPTION screen, with tabs (GAME, MULTI, ACHIEVEMENTS, CHEATS, OPTIONS), for every game (menu.c).
 #pragma once
 #include <stdint.h>
 
@@ -22,25 +22,26 @@ struct settings {
 };
 
 enum { MENU_NONE, MENU_CLOSED, MENU_RESET, MENU_QUIT, MENU_SAVE_STATE, MENU_LOAD_STATE, MENU_RECENTER, MENU_UPDATE_CHEATS, MENU_HARDCORE, MENU_PLAYERS };
-// Cartridge extras, as gba_hw(): which sensor options OPTIONS shows.
+// Cartridge extras, as gba_hw(): which sensor rows OPTIONS shows.
 enum { HW_CLOCK = 1, HW_LIGHT = 2, HW_GYRO = 4, HW_RUMBLE = 8, HW_TILT = 16 };
 
 // slots_used: bit n set = state slot n (1..3) has a file.
 void menu_open(int slots_used, unsigned hw);
 // The state slot (1..3) for MENU_SAVE_STATE / MENU_LOAD_STATE.
 int menu_slot(void);
-// CHEATS shows "UPDATE FROM THE INTERNET" when the title knows its libretro cheat file.
+// The CHEATS tab shows "UPDATE FROM THE INTERNET" when the title knows its libretro cheat file.
 void menu_cheats_updatable(int yes);
-// How many players are linked now, 1..4 (more than 1: LOAD STATE greys out). PLAYERS < n > picks how many
-// MENU_PLAYERS asks for: menu_players_wanted().
+// How many players are linked now, 1..4 (more than 1: LOAD STATE greys out). MULTI > PLAYERS picks how many
+// MENU_PLAYERS (APPLY) asks for: menu_players_wanted().
 void menu_players(int n);
 int menu_players_wanted(void);
 void menu_close(void);
-// The new players' game list: names[0] is this game, the rest other GB5 titles on the console. With only this
-// game the list is skipped. menu_game(p) is the one picked for player p+1 (p = 1..3) for MENU_PLAYERS.
+// The new players' game list: names[0] is this game, the rest other GB5 titles on the console. MULTI has a
+// PLAYER n row per new player that opens it (none with only this game). menu_game(p) is the one picked for
+// player p+1 (p = 1..3) for MENU_PLAYERS.
 void menu_games(const char *const *names, int n);
 int menu_game(int p);
-// A line at the foot of the page now showing (the cheat update's result); "" clears it.
+// A line at the foot of the tab now showing (the cheat update's result); "" clears it.
 void menu_status(const char *msg);
 int menu_is_open(void);
 // Raw DualSense buttons this frame (pad_sample.buttons). Changes *s; returns MENU_*.

@@ -158,9 +158,9 @@
 <script>
 const T = {
   es: {
-    nav_build: 'Crear', nav_settings: 'Ajustes', opts_where: 'Las opciones del GB5 Menu (tamaño, botón A…), la BIOS y la clave de SteamGridDB están en Ajustes.',
+    nav_build: 'Crear', nav_settings: 'Ajustes', opts_where: 'Las opciones del Veda Menu (tamaño, botón A…), la BIOS y la clave de SteamGridDB están en Ajustes.',
     key: 'API key de SteamGridDB', key_hint: 'Para buscar iconos y heroes. Se consigue gratis con una cuenta en', key_set: 'guardada (escribe otra para cambiarla)',
-    save_btn: 'Guardar', saved: 'Guardado', opts: 'Opciones al iniciar cada juego (en el juego se cambian con L2+R2)',
+    save_btn: 'Guardar', saved: 'Guardado', opts: 'Opciones al iniciar cada juego (en el juego se cambian en el Veda Menu, L2+R2)',
     title: 'GB5', rom: 'ROM (.gba o .zip)', name: 'Nombre en el menú', name_ph: 'sale del nombre del archivo si lo dejas vacío',
     icon: 'Icono propio (cuadrado, sale a 512×512)', hero: 'Hero propio, fondo al seleccionar (16:9; un banner se recorta al centro)',
     launch: 'Fondo al lanzar (opcional, si no usa el hero)', music: 'Música (.at9, 48 kHz, máx 2 MiB)',
@@ -190,9 +190,9 @@ const T = {
     building_up: 'Construyendo y subiendo…', building: 'Construyendo (el BC7 4K tarda unos segundos)…', downloaded: z => `✓ Listo: ${z} está en tu carpeta de Descargas`, uploaded: id => `✓ Listo: ${id} está en la PS5`,
   },
   en: {
-    nav_build: 'Create', nav_settings: 'Settings', opts_where: 'The GB5 Menu options (size, A button…), the BIOS and the SteamGridDB key are in Settings.',
+    nav_build: 'Create', nav_settings: 'Settings', opts_where: 'The Veda Menu options (size, A button…), the BIOS and the SteamGridDB key are in Settings.',
     key: 'SteamGridDB API key', key_hint: 'For finding icons and heroes. Free with an account at', key_set: 'saved (type another to change it)',
-    save_btn: 'Save', saved: 'Saved', opts: 'Options every game starts with (in game: L2+R2)',
+    save_btn: 'Save', saved: 'Saved', opts: 'Options every game starts with (in game: Veda Menu, L2+R2)',
     title: 'GB5', rom: 'ROM (.gba or .zip)', name: 'Name on the home screen', name_ph: 'taken from the file name if left empty',
     icon: 'Your own icon (square, becomes 512×512)', hero: 'Your own hero, background when selected (16:9; a banner is centre-cropped)',
     launch: 'Launch background (optional, else the hero)', music: 'Music (.at9, 48 kHz, 2 MiB max)',
@@ -437,7 +437,7 @@ function showTab(name) {
 }
 for (const b of document.querySelectorAll('.nav button')) b.onclick = () => showTab(b.dataset.tab);
 
-// Settings (settings.json beside gb5): the GB5 Menu's starting options and the SteamGridDB key.
+// Settings (settings.json beside gb5): the Veda Menu's starting options and the SteamGridDB key.
 // The server never sends the key back, only whether one is saved.
 const s = $('s');
 let keySet = false;

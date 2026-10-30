@@ -82,7 +82,7 @@ int sceAudioOutSetVolume(int32_t port, int32_t channels, int32_t *vol);  // bit 
 #define DEFAULTS_PATH "/app0/defaults.txt"  // the options gb5.py build chose; settings.txt wins
 #define CHEATS_PATH "/app0/cheats.txt"   // gb5.py writes it
 #define CHEATS_SRC_PATH "/app0/cheats_src.txt" // the libretro .cht name gb5.py matched: the menu can refresh it
-// Each PS5 user has their own folder: game.sav, state1-3.bin (slots), settings.txt (the extra menu's
+// Each PS5 user has their own folder: game.sav, state1-3.bin (slots), settings.txt (Veda Menu's
 // choices, menu.c), cheats_on.txt and the RetroAchievements queue. The rest of the title is shared.
 #define USER_DIR "/app0/user"
 static char udir[48], sav_path[80], set_path[80], cheats_on_path[80];
@@ -120,7 +120,7 @@ static uint16_t untile[128 * 128];  // memory offset in a 64 KiB tile -> (y << 7
 static int16_t srcx[W], srcy[VBLOCKS_Y * 128];  // screen -> GBA pixel, -1 = border
 static uint8_t edgex[W], edgey[VBLOCKS_Y * 128];  // last screen column / row of a GBA pixel: the LCD grid
 static uint32_t color[32768], color_dim[32768];   // BGR555 -> VideoOut bytes R,G,B,A (dim: on the grid)
-static struct settings st;                       // the extra menu's choices
+static struct settings st;                       // Veda Menu's choices
 static int lang_es;                               // console in Spanish
 static int card_x, sun_x;                         // achievement card's / sun meter's left edge
 static int sun_frames;                            // the sun meter shows while > 0
@@ -234,7 +234,7 @@ static void present(const uint16_t *fb) {
 #define MAX_PLAYERS 4
 // Outputs: [0] the main port (the TV, or the console's headphones), [1 + p] player p's controller (PADSPK:
 // its speaker, or headphones in its jack), open while players are linked. Each has its own ring and thread.
-// OPTIONS > MULTIPLAYER SOUND (st.mp_audio) picks which play what.
+// MULTI > SOUND (st.mp_audio) picks which play what.
 static struct aout {
   int16_t ring[RING * 2];
   atomic_uint r, w;
@@ -677,7 +677,7 @@ static const char *players_set(void *m, int32_t user, int want, const uint8_t *r
   }
   while (np < want && !(why = player_add(menu_game(np), rom, rom_len, bios, bios_len, es))) {}
   if (np > 1) link_ = gba_link_new(ms, (size_t)np);
-  if (np > 1) audio_pad_open(0, user);  // player 1's controller, for MULTIPLAYER SOUND = CONTROLLERS
+  if (np > 1) audio_pad_open(0, user);  // player 1's controller, for MULTI > SOUND = PADS ONLY
   else audio_close(1);  // ponytail: a game mid-session sees the cable unplugged and back
   fbw = np > 1 ? 480 : 240;
   fbh = np > 2 ? 320 : 160;

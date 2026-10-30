@@ -50,7 +50,7 @@ mksys.c + third_party/ icon0.png (512²) and pic0/pic1.dds (3840×2160 BC7, DX10
 runtime/               the PS5 title (one eboot.bin for every game)
   src/lib.rs           gba_rt: C API over gba-core (no_std + alloc, panic=abort)
   ps5/main.c           video (tiled RGBA 1920×1080), audio, DualSense, save states, main loop
-  ps5/menu.c|h         GB5 Menu (L2+R2), settings.txt, rewind screen
+  ps5/menu.c|h         Veda Menu (L2+R2, tabs GAME/MULTI/CHEEVOS/CHEATS/OPTIONS), settings.txt, rewind screen
   ps5/ra.c|h           RetroAchievements (rcheevos rc_client) through RA Hub
   ps5/card.c|h         achievement toast + sun meter
   ps5/cheats.c|h       CodeBreaker engine, in-console cheat update
@@ -88,7 +88,7 @@ Not in git: `out/` (built titles), `ROMS/`, `bios/`, `cheatdb/` (cache), `settin
   "226" to DELE; that is accepted.
 - **Options precedence:** web Settings (`settings.json`) or CLI flags → `defaults.txt` in the title →
   `settings.txt` written by the in-game menu, which always wins.
-- **Settings tab:** GB5 Menu start options (size, A button, LCD, GBA colours, hardcore, leaderboard alerts, multiplayer sound), SteamGridDB key
+- **Settings tab:** Veda Menu start options (size, A button, LCD, GBA colours, hardcore, leaderboard alerts, multiplayer sound), SteamGridDB key
   (never sent back to the page, only `sgdb_key_set`), GBA BIOS (saved as `bios/gba_bios.bin`, 16 KB,
   md5 check for the official one).
 - **Web build:** "Create and download .zip" builds, then the browser downloads `<name>_<ID>.zip` from
@@ -98,7 +98,7 @@ Not in git: `out/` (built titles), `ROMS/`, `bios/`, `cheatdb/` (cache), `settin
   executable (`ROOT`). Double-click starts `serve` and opens the browser.
 - **Cheats:** libretro-database `.cht` (CodeBreaker; types 5 and 9 excluded). One request lists the
   names (`cheatdb/index.json`), then only the matched game's file downloads. Match = title without
-  spaces, prefer same region, warn on revision mismatch. All off by default. In game: GB5 Menu → Cheats,
+  spaces, prefer same region, warn on revision mismatch. All off by default. In game: Veda Menu → Cheats,
   updatable through RA Hub `/cheats`.
 - **Saves:** every type (SRAM 32 KB mirrored, Flash 64/128, EEPROM 512/8K, RTC). `.sav` import.
 - **Cartridge hardware → DualSense:** gyro, tilt, rumble (scePadSetVibration mode 2), solar sensor on
@@ -120,7 +120,7 @@ Not in git: `out/` (built titles), `ROMS/`, `bios/`, `cheatdb/` (cache), `settin
   `GB5_VERSION` and `CORE_VERSION`). Up to v0.2.x requests went out as RA Hub's `RAHub/1.0.0 (PS5)`: declare
   it when applying.
 - **Hardcore:**
-  - Set in Settings or GB5 Menu → Options.
+  - Set in Settings or Veda Menu → Options.
   - Blocks loading states, rewind (L3) and cheats. Saving states and turbo are allowed.
   - Turning it on in game resets the game; turning it off is free.
   - The connect notification says hardcore or casual.
@@ -200,9 +200,9 @@ DEPLOY means `bash runtime/build.sh`, then `python3 gb5.py update-all --host <IP
   - Boktai, Yoshi Topsy-Turvy, WarioWare Twisted
 - **Not yet on console:** hardcore mode and RA Hub User-Agent forwarding, incl. the `gba-core/` segment
   (needs DEPLOY + new RA Hub); in-game indicators, leaderboards and the offline queue (tested on the Mac
-  against a fake RA Hub only). GB5 Menu → PLAYERS < 1-4 > (link cable; each extra player is another signed-in
+  against a fake RA Hub only). Veda Menu → MULTI > PLAYERS 1-4, a PLAYER n row per new one opening the game list, APPLY (link cable; each extra player is another signed-in
   user's pad, any installed GB5 title from /data/homebrew with that user's save in that title; 2 side by side
-  ×4, 3-4 in a 2×2 grid ×3; log.txt gets "players N ... ms per frame" once a second). Sound: OPTIONS > MULTI SOUND
+  ×4, 3-4 in a 2×2 grid ×3; log.txt gets "players N ... ms per frame" once a second). Sound: MULTI > SOUND
   (`mpaudio`, Settings `mp_audio`, `--mp-audio`): TV + pads / TV only / pads only. Each player's controller is a
   PADSPK port (type 4, mono, opened at volume 0 so ours is set to 0 dB); PERSONAL (type 3) opens but never routes.
   Headphones in any controller also take the main port (PS5 setting). The main port always runs: it paces the game:
@@ -210,5 +210,8 @@ DEPLOY means `bash runtime/build.sh`, then `python3 gb5.py update-all --host <IP
   10.1 max of 16.7, one thread); 4 not yet.
 - **Next big task:** the gba-recomp recompilation (ROM code → native x86 instead of gba-core's
   interpreter). Before that, maybe the "code refactor" TODO item.
+- **Veda Menu** (runtime/ps5/menu.c): full-screen 240x160, Pokémon OPTION-screen look; header "VEDA MENU", L1 / R1,
+  HARDCORE/CASUAL; tabs GAME (resume, save/load 1-3, turbo, reset, quit), MULTI, CHEEVOS (ES LOGROS), CHEATS, OPTIONS.
+  Rows come from `rows_of()`, shared by input and drawing. Not yet on console (needs DEPLOY).
 - **Deferred:** menu music (no free ATRAC9 encoder), e-Reader, in-game ✕/○ prompts, native
   PS5 app.

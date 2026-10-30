@@ -213,7 +213,7 @@ SAVE_SIZES = {"sram": (32768,), "sram64": (65536,), "flash64": (65536,), "flash1
 
 SIZES = {"pixel": 0, "fill": 1, "16:9": 2}  # runtime/ps5/menu.h SIZE_*
 MP_AUDIO = {"tv_pads": 0, "tv": 1, "pads": 2}  # runtime/ps5/menu.h MP_AUDIO_*: who hears what with 2+ players
-OPTION_KEYS = ("size", "a_button", "lcd", "gba_colors", "hardcore", "lb_popups", "mp_audio")  # build()'s GB5 Menu options, from Settings or flags
+OPTION_KEYS = ("size", "a_button", "lcd", "gba_colors", "hardcore", "lb_popups", "mp_audio")  # build()'s Veda Menu options, from Settings or flags
 
 
 def build(rom_path, name=None, icon=None, hero=None, launch=None, music=None, eboot=None, out="out", tid=None, bios=None, rom_name=None, save=None,
@@ -663,7 +663,7 @@ class Web(http.server.BaseHTTPRequestHandler):
                             files[k].write_bytes(base64.b64decode(req[k]["data"]))
                 if "rom" not in files:
                     raise ValueError("pick a ROM")
-                s = load_settings()  # the GB5 Menu's starting options: from Settings
+                s = load_settings()  # the Veda Menu's starting options: from Settings
                 opts = {k: s[k] for k in OPTION_KEYS}
                 d = build(files.pop("rom"), name=req.get("name") or None,
                           rom_name=req["rom"].get("name"), **opts, **files)

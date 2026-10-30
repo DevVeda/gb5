@@ -1,5 +1,5 @@
 // Cheats (cheats.c): CodeBreaker codes from cheats.txt (GB5 picks them from libretro-database),
-// all off until turned on in the extra menu; which are on is kept in cheats_on.txt.
+// all off until turned on in Veda Menu; which are on is kept in cheats_on.txt.
 #pragma once
 #include <stddef.h>
 #include <stdint.h>

@@ -16,7 +16,7 @@ background and name on the home screen. The game runs on the core of
 
 - **RetroAchievements** through [RA Hub](#ra-en): a notice when it connects, a PS5-trophy-style toast
   for each unlock and the achievement list in the menu.
-- **GB5 Menu** on **L2 + R2**: save states, achievements, cheats, options, turbo, reset.
+- **Veda Menu** (previously GB5 Menu) on **L2 + R2**: tabs for save states, link-cable multiplayer, achievements, cheats and options.
 - **Rewind** on **L3**: the last 2 minutes, with thumbnails.
 - **Cheats** from [libretro-database](https://github.com/libretro/libretro-database) (CodeBreaker),
   updatable from the console itself.
@@ -124,7 +124,7 @@ Takes `.gba` and `.zip` (as No-Intro sets come). While building it tells you the
 cheats it gets and the extra hardware it uses.
 
 Left out, those four come from the web UI's **Settings** tab (else `16:9`, A on ✕, both off). They are only the starting point
-(`defaults.txt` in the title). Whatever you change in the game (GB5 Menu → Options) goes to
+(`defaults.txt` in the title). Whatever you change in the game (Veda Menu → Options) goes to
 `settings.txt` and always wins, even if you build and deploy again.
 
 #### Web
@@ -137,7 +137,7 @@ Pick the ROM, artwork (yours or SteamGridDB's), music and save; see how it will
 look on the PS5 home screen and which cheats it gets; then **Create and download .zip** (the title folder, to copy
 yourself) or upload it straight to the console. The
 **Update all games on the PS5** button does what `update-all` does. The **Settings** tab holds the
-GB5 Menu options every game starts with, the GBA BIOS (saved as `bios/gba_bios.bin`) and your
+Veda Menu options every game starts with, the GBA BIOS (saved as `bios/gba_bios.bin`) and your
 SteamGridDB API key.
 
 #### The title ID
@@ -160,27 +160,27 @@ unique per game and version, so building again replaces the same icon. Codes wit
 
 **Options** can switch it to A = ○, B = ✕ (Nintendo's positions).
 
-**L2 + R2** opens the **GB5 Menu** (the game pauses; reopened, the cursor is where you left it):
+**L2 + R2** opens the **Veda Menu**: the game pauses and the menu fills the screen, in the style of Pokémon's
+options. **L1 / R1** change tabs, **✕** picks, **○** closes; reopened, each tab's cursor is where you left it.
+The header says whether RetroAchievements runs in hardcore or casual.
 
-- **Save / Load state** 1–3 (left/right changes the slot)
-- **Achievements**: the RetroAchievements list with progress
+- **Game**: Resume; Save / Load state 1–3 (left/right changes the slot); Turbo ×1 / ×2 / ×4; Reset; Quit
+- **Multi**: **Players** 1–4: each extra player turns on another DualSense and picks another PS5 user. A
+  **Player N** row per new player opens the list of games: this one or any other GB5 title on the console
+  (Ruby with Emerald, say), played from their own save in that title. **Apply** joins them by the link
+  cable (trades, battles, races): 2 players side by side, 3-4 in a 2×2 grid. Load state and rewind are off
+  while linked. Back with **1** and Apply.
+  **Sound** picks who hears what: **TV + pads** (player 1 on the TV, every other player their own game on
+  their controller's speaker, or headphones in its jack), **TV only** (player 1), or **Pads only** (each
+  player on their controller; the TV stays free for music the PS5 plays in the background). Headphones in
+  any controller take the console's main sound too (PS5 Settings > Sound > Audio Output > Output to
+  Headphones), so with headphones use **Pads only**
+- **Cheevos**: the RetroAchievements list with progress
 - **Cheats**: turn them on and off one by one (all start off). **Update from the internet** fetches the
   game's latest file from libretro-database through RA Hub, without the computer, and keeps the ones you had on.
 - **Options**: size (16:9, fill height, integer ×6: every GBA pixel exactly 6×6), LCD grid, GBA colours,
-  A button ✕/○, hardcore, leaderboard alerts, multiplayer sound (below), and
-  only in the games that have them: rumble on/off, sunlight, gyro axis and sensitivity, tilt sensitivity
-  and levelling
-- **Turbo** ×1 / ×2 / ×4
-- **Players** < 1 2 3 4 >: each extra player turns on another DualSense and picks another PS5 user; they
-  choose this game or any other GB5 title on the console (Ruby with Emerald, say) and play it from their
-  own save in that title, joined by the link cable (trades, battles, races). 2 players side by side, 3-4
-  in a 2×2 grid. Load state and rewind are off while linked. Back with **1**.
-  **Options > Multi sound** picks who hears what: **TV + pads** (player 1 on the TV, every other player
-  their own game on their controller's speaker, or headphones in its jack), **TV only** (player 1), or
-  **Pads only** (each player on their controller; the TV stays free for music the PS5 plays in the
-  background). Headphones in any controller take the console's main sound too (PS5 Settings > Sound >
-  Audio Output > Output to Headphones), so with headphones use **Pads only**
-- **Reset**, **Quit**
+  A button ✕/○, hardcore, leaderboard alerts, and only in the games that have them: rumble on/off,
+  sunlight, gyro axis and sensitivity, tilt sensitivity and levelling
 
 #### Cartridge hardware
 
@@ -211,13 +211,13 @@ With [RA Hub](https://github.com/DevVeda/rahub) running on the PS5 and signed in
 - An unlock shows a toast like the PS5's trophy one (badge + name), top right.
 - Bottom right, while they apply: measured progress (`3/10`, a few seconds) and active challenges.
   Leaderboards on screen (trackers bottom right; started, failed, submitted, your rank as notifications)
-  are off by default (some run the whole game); turn them on in Settings or GB5 Menu → Options.
+  are off by default (some run the whole game); turn them on in Settings or Veda Menu → Options.
   Leaderboards run and submit either way.
 - **Offline:** a game that was started online once also starts without a connection. Unlocks and
   leaderboard entries RetroAchievements hasn't confirmed are kept in `ra_pending.txt` and sent when the
   connection returns, in that session or the next one.
 
-**Hardcore mode** (Settings, or GB5 Menu → Options): no state loading, rewind or cheats; turning it on in a
+**Hardcore mode** (Settings, or Veda Menu → Options): no state loading, rewind or cheats; turning it on in a
 game resets it, turning it off is always allowed. The game says which mode it started in. GB5 identifies
 itself as `GB5/<version> (PS5) gba-core/<version> rcheevos/<version>` (RA Hub passes it on). Until RetroAchievements approves
 GB5 its server shows "Unknown Emulator" and only casual (softcore) unlocks count.
@@ -252,7 +252,7 @@ runtime/
   build.sh           builds (Rust on this machine) and links + signs (Docker) eboot.bin
   src/lib.rs         gba_rt: C API over gba-core (frames, audio, saves, states, RAM)
   ps5/main.c         video (VideoOut), audio (AudioOut), controller, main loop
-  ps5/menu.c         GB5 Menu and the rewind screen
+  ps5/menu.c         Veda Menu and the rewind screen
   ps5/ra.c, card.c   RetroAchievements, the unlock toast and the sun meter
   ps5/cheats.c       CodeBreaker engine
   ps5/rewind.c       rewind history
@@ -334,7 +334,7 @@ fondo y su nombre en el menú de inicio. El juego corre con el núcleo de
 
 - **RetroAchievements** a través de [RA Hub](#ra-es): aviso al conectar, aviso de logro
   como el de trofeos de la PS5 y lista de logros en el menú.
-- **GB5 Menu** con **L2 + R2**: estados de guardado, logros, cheats, opciones, turbo, reinicio.
+- **Veda Menu** con **L2 + R2**: pestañas de estados de guardado, multijugador por cable link, logros, cheats y opciones.
 - **Rebobinado** con **L3**: los últimos 2 minutos, con miniaturas.
 - **Cheats** de [libretro-database](https://github.com/libretro/libretro-database) (CodeBreaker),
   actualizables desde la propia consola.
@@ -442,7 +442,7 @@ Acepta `.gba` y `.zip` (como vienen los sets No-Intro). Al construir dice qué t
 juego, qué cheats lleva y qué hardware extra usa.
 
 Si no las pasas, esas cuatro salen de la pestaña **Ajustes** de la web (si no, `16:9`, A en ✕, ambos apagados). Son solo el punto de partida
-(`defaults.txt` en el título). Lo que cambies en el juego (GB5 Menu → Opciones) se guarda en
+(`defaults.txt` en el título). Lo que cambies en el juego (Veda Menu → Opciones) se guarda en
 `settings.txt` y siempre gana, aunque vuelvas a construir y desplegar.
 
 #### Web
@@ -454,7 +454,7 @@ python3 gb5.py serve   # http://127.0.0.1:8080
 Eliges ROM, arte (tuyo o de SteamGridDB), música y partida; ves cómo quedará
 en el menú de la PS5 y la lista de cheats; y luego **Crear y descargar .zip** (la carpeta del título,
 para copiarla tú) o la subes directo a la consola. El botón **Actualizar todos
-los juegos en la PS5** hace lo mismo que `update-all`. La pestaña **Ajustes** guarda las opciones del GB5 Menu
+los juegos en la PS5** hace lo mismo que `update-all`. La pestaña **Ajustes** guarda las opciones del Veda Menu
 con las que empieza cada juego, la BIOS de GBA (se guarda como `bios/gba_bios.bin`) y tu API key
 de SteamGridDB.
 
@@ -478,28 +478,29 @@ rango 88000–99999; sin código (homebrew): `GBAX` + un número sacado del ROM.
 
 En **Opciones** se puede cambiar a A = ○, B = ✕ (las posiciones de Nintendo).
 
-**L2 + R2** abre el **GB5 Menu** (el juego se pausa; al reabrirlo, el cursor sigue donde lo dejaste):
+**L2 + R2** abre el **Veda Menu**: el juego se pausa y el menú ocupa la pantalla, al estilo de las opciones
+de Pokémon. **L1 / R1** cambian de pestaña, **✕** elige, **○** cierra; al reabrirlo, el cursor de cada pestaña
+sigue donde lo dejaste. La cabecera dice si RetroAchievements va en hardcore o casual.
 
-- **Guardar / Cargar estado** 1–3 (izquierda/derecha cambia la ranura)
+- **Partida**: Continuar; Guardar / Cargar estado 1–3 (izquierda/derecha cambia la ranura); Turbo ×1 / ×2 / ×4;
+  Reiniciar; Salir
+- **Multi**: **Jugadores** 1–4: cada jugador extra enciende otro DualSense y elige otro usuario de la PS5. Una
+  fila **Jugador N** por cada jugador nuevo abre la lista de juegos: este u otro título de GB5 de la consola
+  (Ruby con Emerald, por ejemplo), con su propia partida de ese título. **Aplicar** los une por el cable link
+  (intercambios, combates, carreras): 2 jugadores lado a lado, 3-4 en una cuadrícula de 2×2. Cargar estado y
+  rebobinar no van mientras están conectados. Se vuelve con **1** y Aplicar.
+  **Sonido** elige quién oye qué: **TV + mandos** (el jugador 1 en la TV y cada uno de los demás su partida en
+  el altavoz de su mando, o en los auriculares conectados a él), **Solo TV** (el jugador 1) o **Solo mandos**
+  (cada uno en su mando; la TV queda libre para música que la PS5 reproduzca de fondo). Unos auriculares en
+  cualquier mando se llevan también el sonido principal de la consola (Ajustes de la PS5 > Sonido > Salida de
+  audio > Salida a auriculares), así que con auriculares usa **Solo mandos**
 - **Logros**: lista de RetroAchievements con progreso
 - **Cheats**: activar o desactivar uno a uno (todos empiezan apagados). **Actualizar desde internet**
   baja la versión más reciente del juego en libretro-database a través de RA Hub, sin el computador, y mantiene
   activados los que tenías.
 - **Opciones**: tamaño (16:9, llenar alto, entero ×6: cada píxel de GBA mide exactamente 6×6), filtro LCD,
-  colores de GBA, botón A ✕/○, hardcore, avisos de clasificación, sonido multijugador (abajo),
-  y solo en los juegos que los tienen: vibración sí/no, sol, eje y sensibilidad del giroscopio,
-  sensibilidad y centrado de la inclinación
-- **Turbo** ×1 / ×2 / ×4
-- **Jugadores** < 1 2 3 4 >: cada jugador extra enciende otro DualSense y elige otro usuario de la PS5;
-  elige este juego u otro título de GB5 de la consola (Ruby con Emerald, por ejemplo) y juega con su propia
-  partida de ese título, unidos por el cable link (intercambios, combates, carreras). 2 jugadores lado a
-  lado, 3-4 en una cuadrícula de 2×2. Cargar estado y rebobinar no van mientras están conectados. Se vuelve
-  con **1**. **Opciones > Sonido multi** elige quién oye qué: **TV + mandos** (el jugador 1 en la TV y cada
-  uno de los demás su partida en el altavoz de su mando, o en los auriculares conectados a él), **Solo TV**
-  (el jugador 1) o **Solo mandos** (cada uno en su mando; la TV queda libre para música que la PS5 reproduzca
-  de fondo). Unos auriculares en cualquier mando se llevan también el sonido principal de la consola (Ajustes
-  de la PS5 > Sonido > Salida de audio > Salida a auriculares), así que con auriculares usa **Solo mandos**
-- **Reiniciar**, **Salir**
+  colores de GBA, botón A ✕/○, hardcore, avisos de clasificación, y solo en los juegos que los tienen:
+  vibración sí/no, sol, eje y sensibilidad del giroscopio, sensibilidad y centrado de la inclinación
 
 #### Hardware del cartucho
 
@@ -531,12 +532,12 @@ Con [RA Hub](https://github.com/DevVeda/rahub) corriendo en la PS5 y la sesión 
 - Abajo a la derecha, mientras aplican: progreso medido (`3/10`, unos segundos) y retos activos. Las
   clasificaciones (leaderboards) en pantalla (marcadores abajo a la derecha; iniciado, fallido, enviado y tu
   puesto como notificaciones) vienen apagadas (algunas duran todo el juego); se encienden en Ajustes o
-  GB5 Menu → Opciones. Las clasificaciones funcionan y se envían igual.
+  Veda Menu → Opciones. Las clasificaciones funcionan y se envían igual.
 - **Sin conexión:** un juego que ya arrancó una vez con conexión también arranca sin ella. Los logros y
   las entradas de clasificación que RetroAchievements no ha confirmado se guardan en `ra_pending.txt` y se
   envían cuando vuelve la conexión, en esa sesión o en la siguiente.
 
-**Modo hardcore** (Ajustes, o GB5 Menu → Opciones): sin cargar estados, rebobinar ni cheats; activarlo en un
+**Modo hardcore** (Ajustes, o Veda Menu → Opciones): sin cargar estados, rebobinar ni cheats; activarlo en un
 juego lo reinicia, desactivarlo se puede siempre. El juego avisa en qué modo empezó. GB5 se identifica como
 `GB5/<versión> (PS5) gba-core/<versión> rcheevos/<versión>` (RA Hub lo reenvía). Hasta que RetroAchievements apruebe GB5, su
 servidor muestra "Unknown Emulator" y solo cuentan los logros casual (softcore). Los logros dependen del MD5 del ROM: usa dumps limpios (No-Intro).
@@ -570,7 +571,7 @@ runtime/
   build.sh           compila (Rust en este equipo) y enlaza + firma (Docker) el eboot.bin
   src/lib.rs         gba_rt: API de C sobre gba-core (frames, audio, guardado, estados, RAM)
   ps5/main.c         video (VideoOut), audio (AudioOut), mando, bucle
-  ps5/menu.c         GB5 Menu y pantalla de rebobinado
+  ps5/menu.c         Veda Menu y pantalla de rebobinado
   ps5/ra.c, card.c   RetroAchievements, el aviso de logro y el medidor de sol
   ps5/cheats.c       motor CodeBreaker
   ps5/rewind.c       historial de rebobinado
